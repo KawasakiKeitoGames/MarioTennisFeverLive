@@ -37,28 +37,37 @@ export async function GET(request: Request) {
   else console.error("[collect] Twitch失敗:", results[1].reason);
 
   const all = [...yt, ...tw];
-  if (all.length === 0) {
-    // 誰も配信していない時も「0件だった」記録として空取得は残さない（行を作らない）
-    return NextResponse.json({ ok: true, captured_at: capturedAt, youtube: 0, twitch: 0 });
+  const supabase = createServiceClient();
+
+  // 取得を実行した事実を毎回1行記録（0件でも）。これが「最新取得時点」の基準になり、
+  // 誰も配信していない回は current_streams が正しく空になる。
+  const { error: capErr } = await supabase
+    .from("captures")
+    .insert({ captured_at: capturedAt, youtube: yt.length, twitch: tw.length });
+  if (capErr) {
+    console.error("[collect] captures insert失敗:", capErr);
+    return NextResponse.json({ error: capErr.message }, { status: 500 });
   }
 
-  const rows: StreamSnapshot[] = all.map((s) => ({
-    captured_at: capturedAt,
-    platform: s.platform,
-    channel_id: s.channelId,
-    channel_name: s.channelName,
-    stream_id: s.streamId,
-    title: s.title,
-    viewers: s.viewers,
-    language: s.language,
-    url: s.url,
-  }));
+  // 配信が1件以上あるときだけ明細を保存
+  if (all.length > 0) {
+    const rows: StreamSnapshot[] = all.map((s) => ({
+      captured_at: capturedAt,
+      platform: s.platform,
+      channel_id: s.channelId,
+      channel_name: s.channelName,
+      stream_id: s.streamId,
+      title: s.title,
+      viewers: s.viewers,
+      language: s.language,
+      url: s.url,
+    }));
 
-  const supabase = createServiceClient();
-  const { error } = await supabase.from("stream_snapshots").insert(rows);
-  if (error) {
-    console.error("[collect] insert失敗:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const { error } = await supabase.from("stream_snapshots").insert(rows);
+    if (error) {
+      console.error("[collect] insert失敗:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({

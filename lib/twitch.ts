@@ -30,7 +30,7 @@ export async function fetchTwitchLive(
 
   const g = await fetch(
     `https://api.twitch.tv/helix/games?name=${encodeURIComponent(TWITCH_CATEGORY)}`,
-    { headers }
+    { headers, cache: "no-store" }
   );
   if (!g.ok) throw new Error(`Twitch games: ${g.status} ${await g.text()}`);
   const gData = (await g.json()) as { data?: Array<{ id: string }> };
@@ -46,7 +46,7 @@ export async function fetchTwitchLive(
     const url =
       `https://api.twitch.tv/helix/streams?game_id=${gameId}&first=100` +
       (cursor ? `&after=${cursor}` : "");
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers, cache: "no-store" });
     if (!res.ok) throw new Error(`Twitch streams: ${res.status} ${await res.text()}`);
     const data = (await res.json()) as {
       data?: Array<{

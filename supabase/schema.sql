@@ -21,11 +21,29 @@ create index if not exists idx_snap_captured  on public.stream_snapshots (captur
 create index if not exists idx_snap_platform  on public.stream_snapshots (platform);
 create index if not exists idx_snap_channel   on public.stream_snapshots (platform, channel_id, captured_at desc);
 
--- 最新スナップショットの取得時刻を返すヘルパービュー
-create or replace view public.latest_capture as
-  select max(captured_at) as captured_at from public.stream_snapshots;
+-- 取得を実行した各時点を1行ずつ記録（配信0件の回も必ず1行入れる）。
+-- これにより「最新取得時点が0件」を表現でき、誰も配信していない時に
+-- 古い一覧が残り続ける問題を防ぐ。
+create table if not exists public.captures (
+  captured_at timestamptz primary key default now(),
+  youtube     integer not null default 0,
+  twitch      integer not null default 0
+);
 
--- 「現在配信中」一覧 = 最新の captured_at に属する行
+-- 過去の stream_snapshots から captures を補完（既存DB向け・冪等）
+insert into public.captures (captured_at, youtube, twitch)
+  select captured_at,
+         count(*) filter (where platform = 'youtube'),
+         count(*) filter (where platform = 'twitch')
+  from public.stream_snapshots
+  group by captured_at
+  on conflict (captured_at) do nothing;
+
+-- 最新取得時刻 = captures の最大値（0件の回も含む）
+create or replace view public.latest_capture as
+  select max(captured_at) as captured_at from public.captures;
+
+-- 「現在配信中」一覧 = 最新取得時点に属する行（0件なら空になる）
 create or replace view public.current_streams as
   select s.*
   from public.stream_snapshots s
@@ -45,6 +63,13 @@ create policy "public read snapshots"
   using (true);
 
 -- INSERT は付与しない（service_role キーは RLS をバイパスするため設定不要）
+
+alter table public.captures enable row level security;
+drop policy if exists "public read captures" on public.captures;
+create policy "public read captures"
+  on public.captures for select
+  to anon
+  using (true);
 
 -- =====================================================================
 -- 古いデータの掃除（任意）: 30日より古いスナップショットを削除する関数

@@ -15,7 +15,13 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const capturedAt = data?.[0]?.captured_at ?? null;
+  // 最新取得時刻は latest_capture から取る（0件の回でも正しい時刻を返すため）。
+  const { data: lc } = await supabase
+    .from("latest_capture")
+    .select("captured_at")
+    .maybeSingle();
+
+  const capturedAt = lc?.captured_at ?? data?.[0]?.captured_at ?? null;
   const youtube = (data ?? []).filter((r) => r.platform === "youtube");
   const twitch = (data ?? []).filter((r) => r.platform === "twitch");
 
