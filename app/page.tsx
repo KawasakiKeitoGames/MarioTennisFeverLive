@@ -60,9 +60,19 @@ export default function Home() {
     <main className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
       {/* ヘッダー */}
       <header className="mb-5">
-        <div className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.15em] text-brand">
-          <span className="live-dot inline-block h-2.5 w-2.5 rounded-full bg-brand" />
-          FEVER LIVE
+        <div className="mb-3 flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon-192.png"
+            alt="FEVER LIVE ロゴ"
+            width={48}
+            height={48}
+            className="h-12 w-12 rounded-xl shadow-sm"
+          />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-brand">
+            <span className="live-dot h-1.5 w-1.5 rounded-full bg-brand" />
+            Live
+          </span>
         </div>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
           マリオテニスフィーバー
