@@ -7,7 +7,14 @@ export function createPublicClient() {
   if (!url || !anonKey) {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。");
   }
-  return createClient(url, anonKey, { auth: { persistSession: false } });
+  return createClient(url, anonKey, {
+    auth: { persistSession: false },
+    // Next.js の fetch Data Cache による GET のキャッシュを無効化。
+    // これが無いと current_streams などの読み取りが古い値のまま固定される。
+    global: {
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
+  });
 }
 
 // 書き込み用（service_role キー）。サーバー側（Cron）でのみ使用。絶対にクライアントへ出さない。
