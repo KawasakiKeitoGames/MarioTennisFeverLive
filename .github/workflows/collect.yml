@@ -1,22 +1,15 @@
 name: collect streams
 
-# Vercel Hobby プランの Cron 制限を避けるため、定期取得は GitHub Actions で回す。
-# デプロイ済みの /api/cron/collect を CRON_SECRET 付きで叩くだけ（外部APIの実行はVercel側）。
+# 定期取得は Supabase の pg_cron に移行済み（GitHub Actions の schedule は
+# 高頻度だと遅延・間引きが起きて時刻が保証されないため）。
+# このワークフローは手動実行（動作確認用）のみ残している。
 #
-# 必要な GitHub Secrets（リポジトリ Settings > Secrets and variables > Actions）:
-#   APP_URL      … 例 https://mtf-app.vercel.app （末尾スラッシュなし）
+# 必要な GitHub Secrets（手動実行に使用）:
+#   APP_URL      … 例 https://mario-tennis-fever-live.vercel.app （末尾スラッシュなし）
 #   CRON_SECRET  … Vercel の環境変数と同じ値
-#
-# ⚠️ YouTube のクォータ(10,000/日)に注意。1回の取得で概ね200〜400ユニット消費するため、
-#    下のスケジュールで足りない/多すぎる場合は cron 行を調整してください。
-#    消費を半分にしたい場合は lib/youtube.ts の YT_QUERIES をキーワード1本に。
 
 on:
-  schedule:
-    # 時刻はすべて UTC。日本のゴールデンタイム 20:00〜翌1:00 JST = 11:00〜16:00 UTC。
-    - cron: "*/10 11-16 * * *"   # ゴールデンタイム相当を10分おき
-    - cron: "0 0-10,17-23 * * *" # それ以外を毎時
-  workflow_dispatch: {}          # 手動実行も可（動作確認用）
+  workflow_dispatch: {} # 手動実行のみ（定期取得は Supabase pg_cron 側）
 
 # 同時実行を防ぐ（前の取得が長引いても重複させない）
 concurrency:

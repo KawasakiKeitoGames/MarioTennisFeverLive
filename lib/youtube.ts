@@ -1,6 +1,8 @@
 import type { LiveStream } from "./types";
 
-const YT_QUERIES = ["マリオテニスフィーバー", "Mario Tennis Fever"];
+// クォータ節約のため検索は日本語1本に集約（配信の大半が日本語タイトル）。
+// 英語タイトル単独の配信は取りこぼす可能性があるが、消費を約半分に抑える。
+const YT_QUERIES = ["マリオテニスフィーバー"];
 const BASE = "https://www.googleapis.com/youtube/v3";
 
 // YouTube検索はキーワードが緩く、無関係な配信も拾う（例: 別ゲーム配信や、
