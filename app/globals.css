@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  --font-body: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+}
+
+html, body {
+  padding: 0;
+  margin: 0;
+  background: #161b17;
+  color: #f4f1e8;
+}
+
+/* コートのライン風の細い区切り */
+.court-rule {
+  height: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    #33403a 0,
+    #33403a 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+/* ライブのパルス */
+@keyframes livepulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.live-dot {
+  animation: livepulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
