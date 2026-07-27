@@ -3,6 +3,7 @@ import "./globals.css";
 import ServiceWorkerRegistrar from "./ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://mario-tennis-fever-live.vercel.app"),
   title: "FEVER LIVE — マリオテニスフィーバー 配信中まとめ",
   description:
     "【非公式ファンサイト】今この瞬間にマリオテニスフィーバー / Mario Tennis Fever を配信しているYouTube・Twitchチャンネルを横断表示。視聴者数の推移も。",
@@ -18,6 +19,18 @@ export const metadata: Metadata = {
     description:
       "【非公式ファンサイト】YouTube・Twitch横断で、今配信中のマリオテニスフィーバーを一覧表示。",
     type: "website",
+    siteName: "FEVER LIVE",
+    locale: "ja_JP",
+    images: [
+      { url: "/og.png", width: 1200, height: 630, alt: "FEVER LIVE — マリオテニスフィーバー 配信中まとめ" },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FEVER LIVE — マリオテニスフィーバー 配信中まとめ",
+    description:
+      "【非公式ファンサイト】YouTube・Twitch横断で、今配信中のマリオテニスフィーバーを一覧表示。",
+    images: ["/og.png"],
   },
 };
 
