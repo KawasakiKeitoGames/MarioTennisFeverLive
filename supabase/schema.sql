@@ -55,3 +55,51 @@ returns void language sql as $$
   delete from public.stream_snapshots
   where captured_at < now() - interval '30 days';
 $$;
+
+-- =====================================================================
+-- 視聴者数の推移（グラフ用）: DB側で時間バケット集計してから返す。
+--   - platform で絞り込み、指定期間のピーク上位 p_top チャンネルだけを対象
+--   - p_bucket_min 分ごとのバケットで max(viewers) に集計
+--   - 返す行数は「バケット数 × p_top」で頭打ち → Egressと行数を固定化
+-- anon から supabase.rpc('viewer_history', {...}) で呼ぶ（SECURITY INVOKER=RLS適用）。
+-- =====================================================================
+create or replace function public.viewer_history(
+  p_platform   text,
+  p_hours      int default 24,
+  p_bucket_min int default 20,
+  p_top        int default 12
+)
+returns table (
+  bucket       timestamptz,
+  channel_name text,
+  viewers      integer
+)
+language sql
+stable
+as $$
+  with win as (
+    select channel_id, channel_name, captured_at, viewers
+    from public.stream_snapshots
+    where platform = p_platform
+      and captured_at >= now() - make_interval(hours => greatest(p_hours, 1))
+  ),
+  top as (
+    select channel_id, max(coalesce(viewers, 0)) as peak
+    from win
+    group by channel_id
+    order by peak desc
+    limit greatest(p_top, 1)
+  )
+  select
+    date_bin(
+      make_interval(mins => greatest(p_bucket_min, 1)),
+      w.captured_at,
+      timestamptz 'epoch'
+    ) as bucket,
+    max(w.channel_name)  as channel_name,
+    max(w.viewers)::int  as viewers
+  from win w
+  join top t on t.channel_id = w.channel_id
+  group by 1, w.channel_id
+  order by 1;
+$$;

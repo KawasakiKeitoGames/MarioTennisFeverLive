@@ -14,8 +14,7 @@ import {
 } from "recharts";
 
 interface Point {
-  captured_at: string;
-  platform: "youtube" | "twitch";
+  bucket: string;
   channel_name: string | null;
   viewers: number | null;
 }
@@ -30,6 +29,7 @@ const RANGES = [
   { label: "24時間", hours: 24 },
   { label: "3日", hours: 72 },
   { label: "7日", hours: 168 },
+  { label: "30日", hours: 720 },
 ];
 
 function label(iso: string): string {
@@ -47,39 +47,36 @@ export default function HistoryPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/history?hours=${hours}`, { cache: "no-store" })
+    fetch(`/api/history?hours=${hours}&platform=${platform}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setPoints(d.points ?? []))
       .finally(() => setLoading(false));
-  }, [hours]);
+  }, [hours, platform]);
 
-  // {time -> {channel -> viewers}} に整形し、上位チャンネルのみ表示
+  // points は DB側で platform 絞り込み・時間バケット集計・上位12チャンネルまで済み。
+  // ここでは {time -> {channel -> viewers}} のワイド形式に整形するだけ。
   const { data, channels } = useMemo(() => {
-    const filtered = points.filter((p) => p.platform === platform);
     const peak = new Map<string, number>();
-    for (const p of filtered) {
+    for (const p of points) {
       const c = p.channel_name ?? "?";
       peak.set(c, Math.max(peak.get(c) ?? 0, p.viewers ?? 0));
     }
-    const topChannels = [...peak.entries()]
+    const channels = [...peak.entries()]
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
       .map(([c]) => c);
-    const topSet = new Set(topChannels);
 
     const byTime = new Map<string, Record<string, number | string>>();
-    for (const p of filtered) {
+    for (const p of points) {
       const c = p.channel_name ?? "?";
-      if (!topSet.has(c)) continue;
-      const t = p.captured_at;
+      const t = p.bucket;
       if (!byTime.has(t)) byTime.set(t, { t: label(t) });
       byTime.get(t)![c] = p.viewers ?? 0;
     }
     const rows = [...byTime.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([, v]) => v);
-    return { data: rows, channels: topChannels };
-  }, [points, platform]);
+    return { data: rows, channels };
+  }, [points]);
 
   return (
     <main className="mx-auto max-w-4xl px-5 py-10">
