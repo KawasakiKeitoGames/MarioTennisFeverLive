@@ -174,6 +174,9 @@ export default function HistoryPage() {
       <p className="mt-3 px-1 text-xs text-slate-400">
         ピーク視聴者数が多い上位12チャンネルを表示しています。
       </p>
+      <p className="mt-2 px-1 text-xs text-slate-400">
+        本サイトは非公式のファン制作サイトです。任天堂株式会社および各権利者とは一切関係ありません。
+      </p>
     </main>
   );
 }

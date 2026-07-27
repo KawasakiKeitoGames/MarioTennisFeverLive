@@ -132,7 +132,11 @@ export default function Home() {
         </>
       )}
 
-      <footer className="mt-8 border-t border-slate-200 pt-4">
+      <footer className="mt-8 space-y-2 border-t border-slate-200 pt-4">
+        <p className="text-xs leading-relaxed text-slate-500">
+          本サイトは非公式のファン制作サイトです。任天堂株式会社および「マリオテニスフィーバー」の公式、YouTube・Twitch とは一切関係ありません。
+          各名称・商標は各権利者に帰属します。
+        </p>
         <p className="text-xs leading-relaxed text-slate-400">
           配信データはサーバーが定期的に自動取得しています（目安：日本時間 20:00〜翌1:00 は約10分ごと、それ以外の時間帯は約20分ごと）。
           この画面は保存済みデータを1分ごとに自動更新して表示します（閲覧時に外部APIは呼び出しません）。
