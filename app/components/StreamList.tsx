@@ -21,21 +21,19 @@ function thumbUrl(s: StreamSnapshot): string | null {
 
 const STYLES: Record<
   Platform,
-  { label: string; text: string; dot: string; badge: string; ring: string }
+  { label: string; text: string; dot: string; badge: string }
 > = {
   youtube: {
     label: "YouTube",
     text: "text-youtube",
     dot: "bg-youtube",
     badge: "bg-youtube/10 text-youtube border-youtube/20",
-    ring: "bg-youtube",
   },
   twitch: {
     label: "Twitch",
     text: "text-twitch",
     dot: "bg-twitch",
     badge: "bg-twitch/10 text-twitch border-twitch/20",
-    ring: "bg-twitch",
   },
 };
 
@@ -102,13 +100,6 @@ export default function StreamList({
                         className="h-full w-full object-cover"
                       />
                     ) : null}
-                    {/* LIVE ピル */}
-                    <span
-                      className={`absolute left-1 top-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white ${st.ring}`}
-                    >
-                      <span className="live-dot h-1 w-1 rounded-full bg-white" />
-                      Live
-                    </span>
                   </div>
 
                   {/* チャンネル名 + タイトル */}

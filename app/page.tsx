@@ -60,14 +60,14 @@ export default function Home() {
     <main className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
       {/* ヘッダー */}
       <header className="mb-5">
-        <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-brand">
-          <span className="live-dot inline-block h-2 w-2 rounded-full bg-brand" />
-          Now Streaming
+        <div className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.15em] text-brand">
+          <span className="live-dot inline-block h-2.5 w-2.5 rounded-full bg-brand" />
+          FEVER LIVE
         </div>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
           マリオテニスフィーバー
           <br />
-          配信中 <span className="text-brand">LIVE</span> ボード
+          配信中ボード
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-500">
           YouTube と Twitch を横断して、いま配信中のマリオテニスフィーバーを集計。
@@ -134,7 +134,8 @@ export default function Home() {
 
       <footer className="mt-8 border-t border-slate-200 pt-4">
         <p className="text-xs leading-relaxed text-slate-400">
-          データは定期取得のキャッシュを表示しています（1分ごとに自動更新）。
+          配信データはサーバーが定期的に自動取得しています（目安：日本時間 20:00〜翌1:00 は約10分ごと、それ以外の時間帯は約1時間ごと）。
+          この画面は保存済みデータを1分ごとに自動更新して表示します（閲覧時に外部APIは呼び出しません）。
           視聴者数は取得時点の同時視聴者数です。
         </p>
       </footer>
