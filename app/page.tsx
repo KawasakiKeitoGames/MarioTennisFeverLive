@@ -54,101 +54,90 @@ export default function Home() {
   const grandTotal =
     youtube.reduce((s, x) => s + (x.viewers ?? 0), 0) +
     twitch.reduce((s, x) => s + (x.viewers ?? 0), 0);
+  const streamCount = youtube.length + twitch.length;
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-10">
-      {/* ヘッダー：スコアボードを thesis に */}
-      <header className="mb-8">
-        <div className="flex items-center gap-2 text-xs font-bold tracking-[0.2em] text-ball uppercase mb-3">
-          <span className="live-dot inline-block h-2 w-2 rounded-full bg-ball" />
-          Now Serving
+    <main className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
+      {/* ヘッダー */}
+      <header className="mb-5">
+        <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-brand">
+          <span className="live-dot inline-block h-2 w-2 rounded-full bg-brand" />
+          Now Streaming
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black leading-tight tracking-tight">
+        <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
           マリオテニスフィーバー
           <br />
-          <span className="text-court">配信中</span>
-          <span className="text-clay"> LIVE</span> ボード
+          配信中 <span className="text-brand">LIVE</span> ボード
         </h1>
-        <p className="mt-3 text-sub text-sm leading-relaxed">
+        <p className="mt-2 text-sm leading-relaxed text-slate-500">
           YouTube と Twitch を横断して、いま配信中のマリオテニスフィーバーを集計。
-          全言語対応・視聴者数順。
         </p>
-
-        {/* 総視聴者スコア */}
-        <div className="mt-6 flex items-end gap-6 border-y border-line py-4">
-          <div>
-            <div className="text-4xl font-black tabular-nums text-ball">
-              {grandTotal.toLocaleString("ja-JP")}
-            </div>
-            <div className="text-xs uppercase tracking-wider text-sub mt-1">
-              いま観られている総人数
-            </div>
-          </div>
-          <div className="text-sm text-sub ml-auto text-right">
-            <div>
-              配信数{" "}
-              <span className="font-bold text-chalk tabular-nums">
-                {youtube.length + twitch.length}
-              </span>
-            </div>
-            <div className="mt-1">更新 {relativeTime(capturedAt)}</div>
-          </div>
-        </div>
       </header>
 
-      {/* コントロール */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-1 text-sm">
-          <span className="text-sub mr-2">並び替え</span>
-          <button
-            onClick={() => setSortKey("viewers")}
-            className={`px-3 py-1 rounded border text-xs font-bold transition-colors ${
-              sortKey === "viewers"
-                ? "border-court bg-court/15 text-court"
-                : "border-line text-sub hover:text-chalk"
-            }`}
-          >
-            視聴者数
-          </button>
-          <button
-            onClick={() => setSortKey("name")}
-            className={`px-3 py-1 rounded border text-xs font-bold transition-colors ${
-              sortKey === "name"
-                ? "border-court bg-court/15 text-court"
-                : "border-line text-sub hover:text-chalk"
-            }`}
-          >
-            名前順
-          </button>
+      {/* スコアボード */}
+      <div className="mb-5 grid grid-cols-3 gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="rounded-xl bg-slate-50 p-3 text-center">
+          <div className="text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">
+            {grandTotal.toLocaleString("ja-JP")}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">総視聴者数</div>
         </div>
-        <Link
-          href="/history"
-          className="text-xs font-bold text-clay hover:underline"
-        >
-          視聴者数の推移を見る →
+        <div className="rounded-xl bg-slate-50 p-3 text-center">
+          <div className="text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">
+            {streamCount}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">配信数</div>
+        </div>
+        <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 p-3 text-center">
+          <div className="text-sm font-bold text-slate-700">{relativeTime(capturedAt)}</div>
+          <div className="mt-1 text-[11px] text-slate-500">更新</div>
+        </div>
+      </div>
+
+      {/* コントロール */}
+      <div className="mb-4 flex items-center justify-between px-1">
+        <div className="flex items-center gap-1">
+          <span className="mr-1 text-xs text-slate-400">並び替え</span>
+          {(["viewers", "name"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setSortKey(k)}
+              className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+                sortKey === k
+                  ? "border-brand bg-brand/10 text-brand"
+                  : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {k === "viewers" ? "視聴者数" : "名前順"}
+            </button>
+          ))}
+        </div>
+        <Link href="/history" className="text-xs font-bold text-brand hover:underline">
+          推移を見る →
         </Link>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-clay/40 bg-clay/10 px-4 py-3 text-sm text-clay">
+        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="text-sub text-center py-16">読み込み中…</div>
+        <div className="py-16 text-center text-slate-400">読み込み中…</div>
       ) : (
         <>
-          <StreamList title="配信中" platform="youtube" streams={youtube} sortKey={sortKey} />
-          <StreamList title="配信中" platform="twitch" streams={twitch} sortKey={sortKey} />
+          <StreamList platform="youtube" streams={youtube} sortKey={sortKey} />
+          <StreamList platform="twitch" streams={twitch} sortKey={sortKey} />
         </>
       )}
 
-      <footer className="mt-12 court-rule" />
-      <p className="mt-4 text-xs text-sub leading-relaxed">
-        データは定期取得のキャッシュを表示しています（1分ごとに自動更新）。
-        視聴者数は取得時点の同時視聴者数です。
-      </p>
+      <footer className="mt-8 border-t border-slate-200 pt-4">
+        <p className="text-xs leading-relaxed text-slate-400">
+          データは定期取得のキャッシュを表示しています（1分ごとに自動更新）。
+          視聴者数は取得時点の同時視聴者数です。
+        </p>
+      </footer>
     </main>
   );
 }

@@ -19,9 +19,10 @@ interface Point {
   viewers: number | null;
 }
 
+// 白背景で視認できる濃いめの配色
 const PALETTE = [
-  "#c65f3f", "#3f7d5a", "#d8ef4a", "#4a9eff", "#e056a0", "#f2a63d",
-  "#7ed957", "#c084fc", "#5ad1ff", "#ff6b9d", "#a3e635", "#fb923c",
+  "#ef4444", "#8b5cf6", "#0ea5e9", "#f59e0b", "#10b981", "#ec4899",
+  "#6366f1", "#14b8a6", "#f97316", "#84cc16", "#a855f7", "#0891b2",
 ];
 
 const RANGES = [
@@ -78,29 +79,32 @@ export default function HistoryPage() {
     return { data: rows, channels };
   }, [points]);
 
+  const selText = platform === "twitch" ? "text-twitch" : "text-youtube";
+  const selBorder = platform === "twitch" ? "border-twitch bg-twitch/10" : "border-youtube bg-youtube/10";
+
   return (
-    <main className="mx-auto max-w-4xl px-5 py-10">
-      <Link href="/" className="text-xs font-bold text-clay hover:underline">
+    <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
+      <Link href="/" className="text-xs font-bold text-brand hover:underline">
         ← ライブボードに戻る
       </Link>
-      <h1 className="mt-4 text-2xl sm:text-3xl font-black tracking-tight">
-        視聴者数の<span className="text-court">推移</span>
+      <h1 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+        視聴者数の<span className="text-brand">推移</span>
       </h1>
-      <p className="mt-2 text-sub text-sm">
+      <p className="mt-2 text-sm text-slate-500">
         同時視聴者数の時系列。線の途切れは、その時間に配信していなかったことを表します。
       </p>
 
-      <div className="mt-6 flex flex-wrap items-center gap-4">
+      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex items-center gap-1">
-          <span className="text-xs text-sub mr-2">プラットフォーム</span>
+          <span className="mr-1 text-xs text-slate-400">プラットフォーム</span>
           {(["twitch", "youtube"] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPlatform(p)}
-              className={`px-3 py-1 rounded border text-xs font-bold transition-colors ${
+              className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
                 platform === p
-                  ? "border-court bg-court/15 text-court"
-                  : "border-line text-sub hover:text-chalk"
+                  ? `${selBorder} ${selText}`
+                  : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
               {p === "twitch" ? "Twitch" : "YouTube"}
@@ -108,15 +112,15 @@ export default function HistoryPage() {
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-sub mr-2">期間</span>
+          <span className="mr-1 text-xs text-slate-400">期間</span>
           {RANGES.map((r) => (
             <button
               key={r.hours}
               onClick={() => setHours(r.hours)}
-              className={`px-3 py-1 rounded border text-xs font-bold transition-colors ${
+              className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
                 hours === r.hours
-                  ? "border-clay bg-clay/15 text-clay"
-                  : "border-line text-sub hover:text-chalk"
+                  ? "border-brand bg-brand/10 text-brand"
+                  : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
               {r.label}
@@ -125,31 +129,32 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-lg border border-line bg-panel p-4">
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         {loading ? (
-          <div className="h-[420px] flex items-center justify-center text-sub">
+          <div className="flex h-[420px] items-center justify-center text-slate-400">
             読み込み中…
           </div>
         ) : data.length === 0 ? (
-          <div className="h-[420px] flex items-center justify-center text-sub">
+          <div className="flex h-[420px] items-center justify-center text-slate-400">
             この期間のデータはまだありません。
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={420}>
             <LineChart data={data} margin={{ top: 8, right: 12, bottom: 8, left: -8 }}>
-              <CartesianGrid stroke="#33403a" strokeDasharray="3 3" />
-              <XAxis dataKey="t" tick={{ fill: "#8fa197", fontSize: 11 }} minTickGap={40} />
-              <YAxis tick={{ fill: "#8fa197", fontSize: 11 }} allowDecimals={false} />
+              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+              <XAxis dataKey="t" tick={{ fill: "#94a3b8", fontSize: 11 }} minTickGap={40} stroke="#e2e8f0" />
+              <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} stroke="#e2e8f0" />
               <Tooltip
                 contentStyle={{
-                  background: "#1e2620",
-                  border: "1px solid #33403a",
-                  borderRadius: 8,
-                  color: "#f4f1e8",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
+                  color: "#0f172a",
                   fontSize: 12,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                 }}
               />
-              <Legend wrapperStyle={{ fontSize: 11, color: "#cbd5e6" }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#475569" }} />
               {channels.map((c, i) => (
                 <Line
                   key={c}
@@ -166,7 +171,7 @@ export default function HistoryPage() {
           </ResponsiveContainer>
         )}
       </div>
-      <p className="mt-4 text-xs text-sub">
+      <p className="mt-3 px-1 text-xs text-slate-400">
         ピーク視聴者数が多い上位12チャンネルを表示しています。
       </p>
     </main>

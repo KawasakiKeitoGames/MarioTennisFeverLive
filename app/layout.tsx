@@ -20,7 +20,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body className="font-body antialiased">{children}</body>
+      <body className="font-body antialiased min-h-screen bg-slate-50 text-slate-900">
+        {children}
+      </body>
     </html>
   );
 }

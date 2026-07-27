@@ -10,31 +10,31 @@
 html, body {
   padding: 0;
   margin: 0;
-  background: #161b17;
-  color: #f4f1e8;
+  background: #f8fafc; /* slate-50 */
+  color: #0f172a;      /* slate-900 */
 }
 
-/* コートのライン風の細い区切り */
-.court-rule {
-  height: 1px;
-  background: repeating-linear-gradient(
-    90deg,
-    #33403a 0,
-    #33403a 6px,
-    transparent 6px,
-    transparent 12px
-  );
+/* iOSでの入力ズーム防止 */
+@media screen and (max-width: 768px) {
+  input, select, textarea { font-size: 16px; }
 }
 
 /* ライブのパルス */
 @keyframes livepulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
 }
 .live-dot {
   animation: livepulse 1.6s ease-in-out infinite;
 }
-
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
+}
+
+/* 2行で省略（配信タイトル用） */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
