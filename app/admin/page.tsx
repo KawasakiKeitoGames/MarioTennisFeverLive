@@ -25,12 +25,19 @@ function relative(iso: string | null): string {
   return `${h}時間${min % 60}分前`;
 }
 
+// サーバー(Vercel)はUTCで動くため、日本時間(JST)へ明示的に変換して表示する。
 function dt(iso: string | null): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(
-    d.getMinutes(),
-  ).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(iso));
+  const p = (t: string) => parts.find((x) => x.type === t)?.value ?? "";
+  return `${p("month")}/${p("day")} ${p("hour")}:${p("minute")}`;
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -108,17 +115,19 @@ export default async function AdminPage({
   // 日別 view/click をマージしてグラフ用に整形
   const viewDaily = (viewDailyRes.data ?? []) as { day: string; count: number }[];
   const clickDaily = (clickDailyRes.data ?? []) as { day: string; count: number }[];
+  // events_daily は既にJST日付("YYYY-MM-DD")を返すので、時刻変換せず文字列を整形する。
+  const dayLabel = (ymd: string) => {
+    const [, m, d] = ymd.split("-");
+    return `${Number(m)}/${Number(d)}`;
+  };
   const dailyMap = new Map<string, DailyRow>();
   for (const r of viewDaily) {
-    const d = new Date(r.day);
-    dailyMap.set(r.day, { day: `${d.getMonth() + 1}/${d.getDate()}`, PV: r.count, クリック: 0 });
+    dailyMap.set(r.day, { day: dayLabel(r.day), PV: r.count, クリック: 0 });
   }
   for (const r of clickDaily) {
-    const d = new Date(r.day);
-    const key = r.day;
-    const existing = dailyMap.get(key);
+    const existing = dailyMap.get(r.day);
     if (existing) existing.クリック = r.count;
-    else dailyMap.set(key, { day: `${d.getMonth() + 1}/${d.getDate()}`, PV: 0, クリック: r.count });
+    else dailyMap.set(r.day, { day: dayLabel(r.day), PV: 0, クリック: r.count });
   }
   const daily = [...dailyMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
 
