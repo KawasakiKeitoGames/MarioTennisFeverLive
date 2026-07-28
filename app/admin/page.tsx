@@ -157,7 +157,11 @@ export default async function AdminPage({
   const sinceLastMin = latest
     ? Math.floor((Date.now() - new Date(latest.captured_at).getTime()) / 60000)
     : null;
-  // 時間帯ごとの想定取得間隔（JST 20:00〜翌1:00 のゴールデンは10分、他は20分）。
+  // 時間帯ごとの想定取得間隔（JST）。pg_cron のスケジュールと一致させること。
+  //   20:00〜翌1:00 ゴールデン … 6分
+  //   18:00〜20:00 プライム前 … 15分
+  //   12:00〜13:00 昼         … 10分
+  //   それ以外（1:00〜12:00 / 13:00〜18:00）… 30分
   const jstHour = Number(
     new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Tokyo",
@@ -165,8 +169,14 @@ export default async function AdminPage({
       hour12: false,
     }).format(new Date()),
   ) % 24;
-  const isGolden = jstHour >= 20 || jstHour < 1;
-  const expectedInterval = isGolden ? 10 : 20;
+  const expectedInterval =
+    jstHour >= 20 || jstHour < 1
+      ? 6
+      : jstHour >= 18
+        ? 15
+        : jstHour === 12
+          ? 10
+          : 30;
   // 想定間隔の約3倍（＝2回連続で欠測）を超えたら「停止の可能性」と判断する。
   // これ以内の単発の遅延・スキップでは警告を出さない（誤検知防止）。
   const staleThreshold = expectedInterval * 3;
