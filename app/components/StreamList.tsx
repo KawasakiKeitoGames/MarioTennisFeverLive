@@ -1,6 +1,7 @@
 "use client";
 
 import type { StreamSnapshot, Platform } from "@/lib/types";
+import { trackClick } from "@/lib/track";
 
 type SortKey = "viewers" | "name";
 
@@ -87,6 +88,7 @@ export default function StreamList({
                   href={s.url ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => trackClick(s)}
                   className="group flex items-center gap-3 p-2.5 hover:bg-slate-50 transition-colors outline-none focus-visible:bg-slate-50"
                 >
                   {/* サムネイル */}
