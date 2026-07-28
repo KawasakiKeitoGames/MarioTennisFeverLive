@@ -78,7 +78,9 @@ create policy "public read captures"
 create or replace function public.prune_old_snapshots()
 returns void language sql as $$
   delete from public.stream_snapshots
-  where captured_at < now() - interval '30 days';
+  where captured_at < now() - interval '90 days';
+  delete from public.captures
+  where captured_at < now() - interval '90 days';
 $$;
 
 -- =====================================================================

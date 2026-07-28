@@ -452,14 +452,15 @@ export default async function AdminPage({
             </thead>
             <tbody>
               {[
-                { range: "20:00〜翌1:00（ゴールデン）", every: 6, count: 50 },
-                { range: "18:00〜20:00", every: 15, count: 8 },
-                { range: "13:00〜18:00", every: 30, count: 10 },
-                { range: "12:00〜13:00（お昼）", every: 10, count: 6 },
-                { range: "5:00〜12:00", every: 30, count: 14 },
-                { range: "1:00〜5:00（深夜）", every: 30, count: 8 },
+                { range: "20:00〜翌1:00（ゴールデン）", every: 6, count: 50, hours: [20, 21, 22, 23, 0] },
+                { range: "18:00〜20:00", every: 15, count: 8, hours: [18, 19] },
+                { range: "13:00〜18:00", every: 30, count: 10, hours: [13, 14, 15, 16, 17] },
+                { range: "12:00〜13:00（お昼）", every: 10, count: 6, hours: [12] },
+                { range: "5:00〜12:00", every: 30, count: 14, hours: [5, 6, 7, 8, 9, 10, 11] },
+                { range: "1:00〜5:00（深夜）", every: 30, count: 8, hours: [1, 2, 3, 4] },
               ].map((b) => {
-                const active = b.every === ytExpected;
+                // 「いまここ」は間隔ではなく現在の時間帯（JST時）で判定する。
+                const active = b.hours.includes(jstHour);
                 return (
                   <tr
                     key={b.range}

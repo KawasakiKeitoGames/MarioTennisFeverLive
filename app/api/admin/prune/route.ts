@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 
-// 30日より古いスナップショットを削除（schema.sql の prune_old_snapshots() を実行）。
+// 90日より古いデータ（スナップショット・取得履歴）を削除（prune_old_snapshots() を実行）。
 export const dynamic = "force-dynamic";
 
 export async function POST() {
