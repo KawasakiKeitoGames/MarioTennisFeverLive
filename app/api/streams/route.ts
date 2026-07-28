@@ -21,9 +21,27 @@ export async function GET() {
     .select("captured_at")
     .maybeSingle();
 
+  // バッジ用の集計（連続配信日数・配信開始検知時刻・視聴者トレンド）を合流させる。
+  // 集計に失敗してもバッジ無しで一覧は返す（badges を null 扱いにするだけ）。
+  const { data: badges, error: badgeErr } = await supabase.rpc("current_stream_badges");
+  if (badgeErr) console.error("[streams] current_stream_badges失敗:", badgeErr.message);
+  const badgeMap = new Map<
+    string,
+    { started_at: string | null; streak_days: number | null; trend: string | null }
+  >();
+  for (const b of badges ?? []) {
+    badgeMap.set(`${b.platform}:${b.channel_id}`, {
+      started_at: b.started_at ?? null,
+      streak_days: b.streak_days ?? null,
+      trend: b.trend ?? null,
+    });
+  }
+  const withBadges = (rows: typeof data) =>
+    (rows ?? []).map((r) => ({ ...r, ...(badgeMap.get(`${r.platform}:${r.channel_id}`) ?? {}) }));
+
   const capturedAt = lc?.captured_at ?? data?.[0]?.captured_at ?? null;
-  const youtube = (data ?? []).filter((r) => r.platform === "youtube");
-  const twitch = (data ?? []).filter((r) => r.platform === "twitch");
+  const youtube = withBadges((data ?? []).filter((r) => r.platform === "youtube"));
+  const twitch = withBadges((data ?? []).filter((r) => r.platform === "twitch"));
 
   return NextResponse.json({
     captured_at: capturedAt,

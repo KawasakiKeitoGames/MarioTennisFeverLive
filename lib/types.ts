@@ -1,5 +1,7 @@
 export type Platform = "youtube" | "twitch";
 
+export type ViewerTrend = "up" | "flat" | "down";
+
 export interface StreamSnapshot {
   id?: number;
   captured_at: string;
@@ -11,6 +13,10 @@ export interface StreamSnapshot {
   viewers: number | null;
   language: string | null;
   url: string | null;
+  // バッジ用（current_stream_badges から /api/streams で合流させる。任意）
+  started_at?: string | null; // 現在の配信セッションを最初に検知した時刻
+  streak_days?: number | null; // 連続配信日数（JST）
+  trend?: ViewerTrend | null; // 直近の同時視聴者数の傾向
 }
 
 /** 取得処理が返す、DBに入れる前の1配信ぶんのデータ */

@@ -78,9 +78,8 @@ export default function Home() {
             height={48}
             className="h-12 w-12 rounded-xl shadow-sm"
           />
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-brand">
-            <span className="live-dot h-1.5 w-1.5 rounded-full bg-brand" />
-            Live
+          <span className="text-xl font-black tracking-tight text-brand sm:text-2xl">
+            FEVER LIVE
           </span>
           {isAdmin && (
             <Link
@@ -92,13 +91,19 @@ export default function Home() {
           )}
         </div>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
-          マリオテニスフィーバー
-          <br />
-          配信中ボード
+          マリオテニスフィーバー配信中ボード
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-500">
           YouTube と Twitch を横断して、いま配信中のマリオテニスフィーバーを集計。
         </p>
+        <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-400">
+          <li>
+            <span className="font-bold text-youtube">YouTube</span>：タイトルに「マリオテニスフィーバー」または「Mario Tennis Fever」を含むライブ配信
+          </li>
+          <li>
+            <span className="font-bold text-twitch">Twitch</span>：配信カテゴリ（ゲーム）が「Mario Tennis Fever」のライブ配信
+          </li>
+        </ul>
       </header>
 
       {/* スコアボード */}
@@ -158,10 +163,11 @@ export default function Home() {
       {loading ? (
         <div className="py-16 text-center text-slate-400">読み込み中…</div>
       ) : (
-        <>
-          <StreamList platform="youtube" streams={youtube} sortKey={sortKey} />
-          <StreamList platform="twitch" streams={twitch} sortKey={sortKey} />
-        </>
+        <StreamList
+          streams={[...youtube, ...twitch]}
+          sortKey={sortKey}
+          capturedAt={capturedAt}
+        />
       )}
 
       <footer className="mt-8 space-y-2 border-t border-slate-200 pt-4">
