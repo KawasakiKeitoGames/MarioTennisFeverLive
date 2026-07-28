@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runCollect } from "@/lib/collect";
+import { runCollect, runCollectYouTube, runCollectTwitch } from "@/lib/collect";
 
 // Vercel Cron / pg_cron から叩かれる。実行時間がかかるため長めに。
 export const maxDuration = 60;
@@ -13,8 +13,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // ?platform=youtube / twitch で片方だけ収集（pg_cron はPFごとに別間隔で叩く）。
+  // 未指定は両方（後方互換・手動確認用）。
+  const platform = new URL(request.url).searchParams.get("platform");
+
   try {
-    const result = await runCollect();
+    const result =
+      platform === "youtube"
+        ? await runCollectYouTube()
+        : platform === "twitch"
+          ? await runCollectTwitch()
+          : await runCollect();
     return NextResponse.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "collect失敗";

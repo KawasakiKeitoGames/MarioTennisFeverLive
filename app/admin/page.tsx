@@ -81,7 +81,11 @@ export default async function AdminPage({
     channelsRes,
     recentSnapsRes,
   ] = await Promise.all([
-    supabase.from("captures").select("*").order("captured_at", { ascending: false }).limit(12),
+    supabase
+      .from("captures")
+      .select("captured_at,platform,count")
+      .order("captured_at", { ascending: false })
+      .limit(40),
     supabase.from("stream_snapshots").select("*", { count: "exact", head: true }),
     supabase.rpc("analytics_summary", { p_days: days }),
     supabase.rpc("events_daily", { p_days: days, p_type: "view" }),
@@ -99,10 +103,11 @@ export default async function AdminPage({
 
   const captures = (capturesRes.data ?? []) as {
     captured_at: string;
-    youtube: number;
-    twitch: number;
+    platform: string;
+    count: number;
   }[];
-  const latest = captures[0] ?? null;
+  const ytCaps = captures.filter((c) => c.platform === "youtube");
+  const twCaps = captures.filter((c) => c.platform === "twitch");
   const snapCount = snapCountRes.count ?? 0;
 
   const summary = (summaryRes.data?.[0] ?? { views: 0, clicks: 0, uniques: 0 }) as {
@@ -146,22 +151,7 @@ export default async function AdminPage({
   }[];
   const recentSnaps = (recentSnapsRes.data ?? []) as SnapshotRow[];
 
-  // 取得間隔（直近2件の差）と欠測の目安
-  let intervalMin: number | null = null;
-  if (captures.length >= 2) {
-    intervalMin = Math.round(
-      (new Date(captures[0].captured_at).getTime() - new Date(captures[1].captured_at).getTime()) /
-        60000,
-    );
-  }
-  const sinceLastMin = latest
-    ? Math.floor((Date.now() - new Date(latest.captured_at).getTime()) / 60000)
-    : null;
-  // 時間帯ごとの想定取得間隔（JST）。pg_cron のスケジュールと一致させること。
-  //   20:00〜翌1:00 ゴールデン … 6分
-  //   18:00〜20:00 プライム前 … 15分
-  //   12:00〜13:00 昼         … 10分
-  //   それ以外（1:00〜12:00 / 13:00〜18:00）… 30分
+  // 現在のJST時刻（時）。YouTube の想定間隔は時間帯別なのでこれを使う。
   const jstHour = Number(
     new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Tokyo",
@@ -169,18 +159,35 @@ export default async function AdminPage({
       hour12: false,
     }).format(new Date()),
   ) % 24;
-  const expectedInterval =
-    jstHour >= 20 || jstHour < 1
-      ? 6
-      : jstHour >= 18
-        ? 15
-        : jstHour === 12
-          ? 10
-          : 30;
-  // 想定間隔の約3倍（＝2回連続で欠測）を超えたら「停止の可能性」と判断する。
-  // これ以内の単発の遅延・スキップでは警告を出さない（誤検知防止）。
-  const staleThreshold = expectedInterval * 3;
-  const stale = sinceLastMin != null && sinceLastMin > staleThreshold;
+  // YouTube の時間帯別想定間隔（JST）。pg_cron のスケジュールと一致させること。
+  //   20:00〜翌1:00 ゴールデン … 6分 / 18:00〜20:00 … 15分 / 12:00〜13:00 … 10分
+  //   それ以外（1:00〜12:00 / 13:00〜18:00）… 30分
+  const ytExpected =
+    jstHour >= 20 || jstHour < 1 ? 6 : jstHour >= 18 ? 15 : jstHour === 12 ? 10 : 30;
+  const twExpected = 2; // Twitch は終日2分間隔（別ジョブ）
+
+  // PF別に「最新収集時刻・直近間隔・欠測判定」を計算する。
+  // 欠測は想定間隔の約3倍（＝2回連続スキップ）を超えたら「停止の可能性」とする。
+  function platformStatus(
+    caps: { captured_at: string; count: number }[],
+    expected: number,
+  ) {
+    const latest = caps[0] ?? null;
+    const prev = caps[1] ?? null;
+    const intervalMin =
+      latest && prev
+        ? Math.round(
+            (new Date(latest.captured_at).getTime() - new Date(prev.captured_at).getTime()) / 60000,
+          )
+        : null;
+    const sinceLastMin = latest
+      ? Math.floor((Date.now() - new Date(latest.captured_at).getTime()) / 60000)
+      : null;
+    const stale = sinceLastMin != null && sinceLastMin > expected * 3;
+    return { latest, intervalMin, sinceLastMin, stale, expected };
+  }
+  const ytStatus = platformStatus(ytCaps, ytExpected);
+  const twStatus = platformStatus(twCaps, twExpected);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
@@ -202,22 +209,36 @@ export default async function AdminPage({
         <h2 className="mb-1 text-sm font-black text-slate-700">収集ステータス</h2>
         <p className="mb-2 text-[11px] text-slate-400">
           「最終収集」は pg_cron ジョブが最後に動いた時刻です（配信0件の回も毎回記録されます）。
+          YouTube と Twitch は別ジョブ・別間隔で収集しています。
         </p>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Stat label="最終収集（ジョブ実行）" value={relative(latest?.captured_at ?? null)} sub={dt(latest?.captured_at ?? null)} />
-          <Stat
-            label="最新回の配信数"
-            value={latest ? `${latest.youtube + latest.twitch}` : "—"}
-            sub={latest ? `YT ${latest.youtube} / Tw ${latest.twitch}` : undefined}
-          />
-          <Stat label="直近の取得間隔" value={intervalMin != null ? `${intervalMin}分` : "—"} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(
+            [
+              { key: "YouTube", st: ytStatus },
+              { key: "Twitch", st: twStatus },
+            ] as const
+          ).map(({ key, st }) => (
+            <div key={key} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-black text-slate-600">{key}</span>
+                <span className="text-[10px] text-slate-400">想定間隔 {st.expected}分</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <Stat label="最終収集" value={relative(st.latest?.captured_at ?? null)} sub={dt(st.latest?.captured_at ?? null)} />
+                <Stat label="最新回の配信数" value={st.latest ? `${st.latest.count}` : "—"} />
+                <Stat label="直近の間隔" value={st.intervalMin != null ? `${st.intervalMin}分` : "—"} />
+              </div>
+              {st.stale && (
+                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                  ⚠️ 最終収集から{st.sinceLastMin}分経過（想定間隔{st.expected}分）。ジョブ停止の可能性があります。
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-2.5">
           <Stat label="累計スナップショット" value={fmt(snapCount)} />
         </div>
-        {stale && (
-          <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-            ⚠️ 最終収集から{sinceLastMin}分経過しています（想定間隔{expectedInterval}分）。pg_cron が停止している可能性があります。
-          </div>
-        )}
       </section>
 
       {/* アクセス解析 */}
@@ -321,18 +342,18 @@ export default async function AdminPage({
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
                 <th className="px-4 py-2 font-medium">取得時刻</th>
-                <th className="px-4 py-2 font-medium tabular-nums">YouTube</th>
-                <th className="px-4 py-2 font-medium tabular-nums">Twitch</th>
-                <th className="px-4 py-2 font-medium tabular-nums">計</th>
+                <th className="px-4 py-2 font-medium">プラットフォーム</th>
+                <th className="px-4 py-2 font-medium tabular-nums">配信数</th>
               </tr>
             </thead>
             <tbody>
-              {captures.map((c) => (
-                <tr key={c.captured_at} className="border-b border-slate-50 last:border-0">
+              {captures.map((c, i) => (
+                <tr key={`${c.captured_at}-${c.platform}-${i}`} className="border-b border-slate-50 last:border-0">
                   <td className="px-4 py-2 text-slate-600">{dt(c.captured_at)}</td>
-                  <td className="px-4 py-2 tabular-nums text-slate-700">{c.youtube}</td>
-                  <td className="px-4 py-2 tabular-nums text-slate-700">{c.twitch}</td>
-                  <td className="px-4 py-2 font-bold tabular-nums text-slate-900">{c.youtube + c.twitch}</td>
+                  <td className="px-4 py-2 text-xs text-slate-500">
+                    {c.platform === "twitch" ? "Twitch" : "YouTube"}
+                  </td>
+                  <td className="px-4 py-2 font-bold tabular-nums text-slate-900">{c.count}</td>
                 </tr>
               ))}
             </tbody>
@@ -414,7 +435,12 @@ export default async function AdminPage({
 
       {/* 収集スケジュール（時間帯別の取得間隔） */}
       <section className="mb-10">
-        <h2 className="mb-2 text-sm font-black text-slate-700">収集スケジュール（時間帯別の取得間隔）</h2>
+        <h2 className="mb-1 text-sm font-black text-slate-700">収集スケジュール（時間帯別の取得間隔）</h2>
+        <p className="mb-2 text-[11px] text-slate-400">
+          下表は <span className="font-bold">YouTube</span> の間隔です。
+          <span className="font-bold">Twitch</span> は日次上限が無いため、時間帯によらず
+          <span className="font-bold">終日2分ごと</span>（別ジョブ）で収集しています。
+        </p>
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead>
@@ -433,7 +459,7 @@ export default async function AdminPage({
                 { range: "5:00〜12:00", every: 30, count: 14 },
                 { range: "1:00〜5:00（深夜）", every: 30, count: 8 },
               ].map((b) => {
-                const active = b.every === expectedInterval;
+                const active = b.every === ytExpected;
                 return (
                   <tr
                     key={b.range}
