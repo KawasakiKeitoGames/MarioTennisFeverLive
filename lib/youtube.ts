@@ -28,7 +28,11 @@ export async function fetchYouTubeLive(apiKey: string): Promise<LiveStream[]> {
 
   for (const q of YT_QUERIES) {
     let pageToken = "";
-    for (let page = 0; page < 2; page++) {
+    // 1ページ(最大50件)のみ取得する安全弁。実測では同時配信は最大10件程度で、
+    // 2ページ目(nextPageToken)はそもそも発火しない。仮に大会等で瞬間的に50件を
+    // 超えても、ここで打ち切ることで1回あたりのsearch消費が100ユニットで固定され、
+    // ゴールデンの連続実行でも日次上限(10,000)を突き破って収集が全停止する事故を防ぐ。
+    for (let page = 0; page < 1; page++) {
       const url =
         `${BASE}/search?part=snippet&type=video&eventType=live` +
         `&q=${encodeURIComponent(q)}&maxResults=50&key=${apiKey}` +

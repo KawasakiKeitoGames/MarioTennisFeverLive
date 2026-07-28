@@ -139,9 +139,14 @@ export default function Home() {
             </button>
           ))}
         </div>
-        <Link href="/history" className="text-xs font-bold text-brand hover:underline">
-          推移を見る →
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/analytics" className="text-xs font-bold text-brand hover:underline">
+            分析 →
+          </Link>
+          <Link href="/history" className="text-xs font-bold text-brand hover:underline">
+            推移を見る →
+          </Link>
+        </div>
       </div>
 
       {error && (
