@@ -412,6 +412,63 @@ export default async function AdminPage({
         </div>
       </section>
 
+      {/* 収集スケジュール（時間帯別の取得間隔） */}
+      <section className="mb-10">
+        <h2 className="mb-2 text-sm font-black text-slate-700">収集スケジュール（時間帯別の取得間隔）</h2>
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                <th className="px-4 py-2 font-medium">時間帯（日本時間）</th>
+                <th className="px-4 py-2 font-medium">取得間隔</th>
+                <th className="px-4 py-2 font-medium tabular-nums">1日の回数</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { range: "20:00〜翌1:00（ゴールデン）", every: 6, count: 50 },
+                { range: "18:00〜20:00", every: 15, count: 8 },
+                { range: "13:00〜18:00", every: 30, count: 10 },
+                { range: "12:00〜13:00（お昼）", every: 10, count: 6 },
+                { range: "5:00〜12:00", every: 30, count: 14 },
+                { range: "1:00〜5:00（深夜）", every: 30, count: 8 },
+              ].map((b) => {
+                const active = b.every === expectedInterval;
+                return (
+                  <tr
+                    key={b.range}
+                    className={`border-b border-slate-50 last:border-0 ${active ? "bg-brand/10" : ""}`}
+                  >
+                    <td className="px-4 py-2 text-slate-700">
+                      {b.range}
+                      {active && (
+                        <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-white">
+                          いまここ
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 font-bold tabular-nums text-slate-900">{b.every}分ごと</td>
+                    <td className="px-4 py-2 tabular-nums text-slate-500">{b.count}回</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-slate-100 text-xs text-slate-500">
+                <td className="px-4 py-2 font-bold">合計</td>
+                <td className="px-4 py-2"></td>
+                <td className="px-4 py-2 font-bold tabular-nums">96回/日</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+          間隔は YouTube Data API の1日あたりの上限（10,000ユニット。1回の収集で約100ユニット消費）に収まるよう、
+          配信が多いゴールデンタイムほど短く配分しています（合計 約9,700ユニット/日）。実体は Supabase の
+          pg_cron（4ジョブ）で、サーバー時刻(UTC)で登録・日本時間で運用しています。
+        </p>
+      </section>
+
       <p className="mb-6 text-[11px] leading-relaxed text-slate-400">
         アクセス解析はIP・個人情報を保存していません（端末ローカルの匿名トークンで集計）。この画面は管理者専用です。
       </p>
