@@ -25,6 +25,7 @@ export default function Home() {
   const [sortKey, setSortKey] = useState<SortKey>("viewers");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -51,6 +52,14 @@ export default function Home() {
     };
   }, [load]);
 
+  // ログイン済み（管理者）のときだけ、管理ページへのボタンを表示する。
+  // 認証Cookieは httpOnly でJSから読めないため、保護APIの応答で判定する。
+  useEffect(() => {
+    fetch("/api/admin/me", { cache: "no-store" })
+      .then((r) => setIsAdmin(r.ok))
+      .catch(() => setIsAdmin(false));
+  }, []);
+
   const grandTotal =
     youtube.reduce((s, x) => s + (x.viewers ?? 0), 0) +
     twitch.reduce((s, x) => s + (x.viewers ?? 0), 0);
@@ -73,6 +82,14 @@ export default function Home() {
             <span className="live-dot h-1.5 w-1.5 rounded-full bg-brand" />
             Live
           </span>
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
+            >
+              ⚙️ 管理ページ
+            </Link>
+          )}
         </div>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
           マリオテニスフィーバー
