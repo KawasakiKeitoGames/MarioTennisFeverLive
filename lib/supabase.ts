@@ -24,5 +24,12 @@ export function createServiceClient() {
   if (!url || !serviceKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY が未設定です。");
   }
-  return createClient(url, serviceKey, { auth: { persistSession: false } });
+  return createClient(url, serviceKey, {
+    auth: { persistSession: false },
+    // 管理画面・収集で常に最新のDB状態を読む。これが無いと Next.js の fetch Data Cache が
+    // GET 結果（例: captures の最新取得時刻）をキャッシュし、古い値が表示され続ける。
+    global: {
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
+  });
 }

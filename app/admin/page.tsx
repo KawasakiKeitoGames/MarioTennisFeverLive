@@ -189,9 +189,12 @@ export default async function AdminPage({
 
       {/* 収集ステータス */}
       <section className="mb-8">
-        <h2 className="mb-2 text-sm font-black text-slate-700">収集ステータス</h2>
+        <h2 className="mb-1 text-sm font-black text-slate-700">収集ステータス</h2>
+        <p className="mb-2 text-[11px] text-slate-400">
+          「最終収集」は pg_cron ジョブが最後に動いた時刻です（配信0件の回も毎回記録されます）。
+        </p>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Stat label="最終取得" value={relative(latest?.captured_at ?? null)} sub={dt(latest?.captured_at ?? null)} />
+          <Stat label="最終収集（ジョブ実行）" value={relative(latest?.captured_at ?? null)} sub={dt(latest?.captured_at ?? null)} />
           <Stat
             label="最新回の配信数"
             value={latest ? `${latest.youtube + latest.twitch}` : "—"}
@@ -202,7 +205,7 @@ export default async function AdminPage({
         </div>
         {stale && (
           <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-            ⚠️ 最終取得から{sinceLastMin}分経過しています。pg_cron が停止している可能性があります。
+            ⚠️ 最終収集から{sinceLastMin}分経過しています（想定間隔{expectedInterval}分）。pg_cron が停止している可能性があります。
           </div>
         )}
       </section>
