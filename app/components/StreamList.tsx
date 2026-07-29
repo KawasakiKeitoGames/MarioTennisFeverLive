@@ -136,7 +136,7 @@ export default function StreamList({
                   onClick={() => trackClick(s)}
                   className="group flex items-center gap-3 p-2.5 hover:bg-slate-50 transition-colors outline-none focus-visible:bg-slate-50"
                 >
-                  {/* サムネイル + PFチップ */}
+                  {/* サムネイル（バッジは名前の右隣へ移動＝サムネを隠さない） */}
                   <div className="relative w-28 sm:w-32 shrink-0 aspect-video rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -147,12 +147,6 @@ export default function StreamList({
                         className="h-full w-full object-cover"
                       />
                     ) : null}
-                    <span
-                      className={`absolute left-1 top-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold shadow-sm backdrop-blur ${st.badge}`}
-                    >
-                      <span className={`h-1 w-1 rounded-full ${st.dot}`} />
-                      {st.label}
-                    </span>
                   </div>
 
                   {/* チャンネル名 + タイトル + バッジ */}
@@ -160,6 +154,12 @@ export default function StreamList({
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-[15px] leading-tight text-slate-900 truncate group-hover:underline">
                         {s.channel_name ?? s.channel_id}
+                      </span>
+                      <span
+                        className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${st.badge}`}
+                      >
+                        <span className={`h-1 w-1 rounded-full ${st.dot}`} />
+                        {st.label}
                       </span>
                       {s.orientation === "portrait" && (
                         <span
