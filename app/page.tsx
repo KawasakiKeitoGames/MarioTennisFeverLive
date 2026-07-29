@@ -98,7 +98,7 @@ export default function Home() {
         </p>
         <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-400">
           <li>
-            <span className="font-bold text-youtube">YouTube</span>：タイトルに「マリオテニスフィーバー」または「Mario Tennis Fever」を含むライブ配信
+            <span className="font-bold text-youtube">YouTube</span>：タイトルに「マリオテニスフィーバー」を含むライブ配信
           </li>
           <li>
             <span className="font-bold text-twitch">Twitch</span>：配信カテゴリ（ゲーム）が「Mario Tennis Fever」のライブ配信
