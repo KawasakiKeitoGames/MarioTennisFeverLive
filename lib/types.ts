@@ -2,6 +2,10 @@ export type Platform = "youtube" | "twitch";
 
 export type ViewerTrend = "up" | "flat" | "down";
 
+// 配信の向き。portrait=縦動画（YouTube Shortsライブ等）。Twitchは常に landscape。
+// null は未判定（旧データや埋め込み無効で寸法が取れなかった場合）。
+export type Orientation = "portrait" | "landscape";
+
 export interface StreamSnapshot {
   id?: number;
   captured_at: string;
@@ -13,6 +17,7 @@ export interface StreamSnapshot {
   viewers: number | null;
   language: string | null;
   url: string | null;
+  orientation?: Orientation | null; // 縦横（縦動画=portrait）
   // バッジ用（current_stream_badges から /api/streams で合流させる。任意）
   started_at?: string | null; // 現在の配信セッションを最初に検知した時刻
   streak_days?: number | null; // 連続配信日数（JST）
@@ -29,4 +34,5 @@ export interface LiveStream {
   viewers: number;
   language: string;
   url: string;
+  orientation: Orientation | null;
 }

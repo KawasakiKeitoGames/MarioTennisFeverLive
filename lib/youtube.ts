@@ -1,4 +1,20 @@
-import type { LiveStream } from "./types";
+import type { LiveStream, Orientation } from "./types";
+
+// 埋め込みプレイヤーの寸法から縦横を判定する。part=player&maxWidth 指定時に
+// embedWidth/embedHeight が動画の実アスペクト比で返るため、高さ>幅 なら縦動画。
+// 寸法が取れない場合（埋め込み無効など）は null（未判定）。
+function orientationFrom(player?: {
+  embedWidth?: number | string;
+  embedHeight?: number | string;
+}): Orientation | null {
+  // APIは maxWidth/maxHeight 指定時のみ寸法を返し、数値/文字列どちらの場合もある。
+  const w = Number(player?.embedWidth);
+  const h = Number(player?.embedHeight);
+  if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+    return h > w ? "portrait" : "landscape";
+  }
+  return null;
+}
 
 // クォータ節約のため検索は日本語1本に集約（配信の大半が日本語タイトル）。
 // 英語タイトル単独の配信は取りこぼす可能性があるが、消費を約半分に抑える。
@@ -63,8 +79,9 @@ export async function fetchYouTubeLive(apiKey: string): Promise<LiveStream[]> {
 
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
+    // player パートはクォータ加算なし。maxWidth を付けると embedWidth/embedHeight が返る。
     const url =
-      `${BASE}/videos?part=liveStreamingDetails,snippet&id=${chunk.join(",")}&key=${apiKey}`;
+      `${BASE}/videos?part=liveStreamingDetails,snippet,player&maxWidth=640&id=${chunk.join(",")}&key=${apiKey}`;
     const res = await fetch(url);
     if (!res.ok) {
       console.error(`[YT videos] ${res.status} ${await res.text()}`);
@@ -75,6 +92,7 @@ export async function fetchYouTubeLive(apiKey: string): Promise<LiveStream[]> {
         id: string;
         liveStreamingDetails?: { concurrentViewers?: string };
         snippet?: { channelId?: string; channelTitle?: string; title?: string; description?: string };
+        player?: { embedWidth?: number | string; embedHeight?: number | string };
       }>;
     };
     for (const it of data.items ?? []) {
@@ -93,6 +111,7 @@ export async function fetchYouTubeLive(apiKey: string): Promise<LiveStream[]> {
         viewers: parseInt(cv, 10),
         language: "",
         url: `https://www.youtube.com/watch?v=${it.id}`,
+        orientation: orientationFrom(it.player),
       });
     }
   }
