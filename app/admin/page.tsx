@@ -363,14 +363,14 @@ export default async function AdminPage({
 
       {/* チャンネル登場ランキング */}
       <section className="mb-8">
-        <h2 className="mb-2 text-sm font-black text-slate-700">観測チャンネル（登場回数）</h2>
+        <h2 className="mb-2 text-sm font-black text-slate-700">観測チャンネル（配信時間・h／PF公平）</h2>
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
                 <th className="px-4 py-2 font-medium">チャンネル</th>
                 <th className="px-4 py-2 font-medium">Pf</th>
-                <th className="px-4 py-2 font-medium tabular-nums">登場</th>
+                <th className="px-4 py-2 font-medium tabular-nums">配信h</th>
                 <th className="px-4 py-2 font-medium">最終観測</th>
               </tr>
             </thead>

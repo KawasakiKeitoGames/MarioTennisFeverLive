@@ -257,8 +257,15 @@ as $$
   limit greatest(p_limit, 1);
 $$;
 
--- 観測チャンネルの登場回数ランキング（stream_snapshots 全期間）
-create or replace function public.channel_appearances(p_limit int default 30)
+-- よく配信しているch ランキング（PF公平版・20260729_fair_channel_appearances.sql と一致必須）
+-- 生の行数ではなく「観測された1時間バケット数」を数え、収集頻度差(YT6-30分/Twitch2分)の
+-- バイアスを排除する。値 ≒ 配信していた時間数（概算）。
+drop function if exists public.channel_appearances(int);
+create or replace function public.channel_appearances(
+  p_limit    int  default 30,
+  p_days     int  default 90,
+  p_platform text default null
+)
 returns table (
   channel_name text,
   platform     text,
@@ -268,12 +275,14 @@ returns table (
 language sql
 stable
 as $$
-  select coalesce(max(channel_name), channel_id) as channel_name,
-         max(platform)     as platform,
-         count(*)          as appearances,
-         max(captured_at)  as last_seen
+  select coalesce(max(channel_name), channel_id)         as channel_name,
+         max(platform)                                   as platform,
+         count(distinct date_trunc('hour', captured_at)) as appearances,
+         max(captured_at)                                as last_seen
   from public.stream_snapshots
+  where captured_at >= now() - make_interval(days => greatest(p_days, 1))
+    and (p_platform is null or platform = p_platform)
   group by channel_id
-  order by appearances desc
+  order by appearances desc, last_seen desc
   limit greatest(p_limit, 1);
 $$;

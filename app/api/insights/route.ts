@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     supabase.rpc("hour_heatmap", { p_days: days, p_platform: platform }),
     supabase.rpc("new_channels", { p_days: Math.min(days, 30), p_limit: 30 }),
     supabase.rpc("title_hashtags", { p_days: days, p_limit: 24, p_platform: platform }),
-    supabase.rpc("channel_appearances", { p_limit: 20 }),
+    supabase.rpc("channel_appearances", { p_limit: 20, p_days: days, p_platform: platform }),
     supabase.rpc("channel_growth", { p_days: days, p_limit: 20 }),
   ]);
 

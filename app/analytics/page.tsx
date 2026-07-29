@@ -307,7 +307,10 @@ export default function AnalyticsPage() {
           <div className="mt-6 grid gap-6 sm:grid-cols-2">
             {/* 登場回数ランキング */}
             <section>
-              <h2 className="mb-2 text-sm font-black text-slate-700">よく配信しているch（登場回数）</h2>
+              <h2 className="mb-2 text-sm font-black text-slate-700">よく配信しているch（配信時間）</h2>
+              <p className="mb-2 text-[11px] text-slate-400">
+                配信が観測された時間数（概算・h）。YouTube / Twitch の収集頻度差をならして公平に比較しています。
+              </p>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 {(d?.appearances ?? []).length === 0 ? (
                   <p className="text-xs text-slate-400">まだデータがありません。</p>
@@ -321,7 +324,9 @@ export default function AnalyticsPage() {
                           <div className="truncate text-slate-700">{c.channel_name}</div>
                           <div className="mt-0.5 h-1 rounded-full bg-brand" style={{ width: `${Math.round((c.appearances / maxApp) * 100)}%` }} />
                         </div>
-                        <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(c.appearances)}</span>
+                        <span className="shrink-0 font-bold tabular-nums text-slate-900">
+                          {fmt(c.appearances)}<span className="ml-0.5 text-[10px] font-normal text-slate-400">h</span>
+                        </span>
                       </li>
                     ))}
                   </ol>
