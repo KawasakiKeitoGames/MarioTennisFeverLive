@@ -5,6 +5,8 @@ import Link from "next/link";
 import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -117,6 +119,17 @@ export default function HistoryPage() {
   }, [points, hours]);
 
   const accent = platform === "twitch" ? TWITCH : YOUTUBE;
+  const stacked = hours >= 72; // 3日以上は積み上げエリアグラフ
+
+  // 積み上げエリア用：欠けを0で埋め、面が途切れず連続した推移として見えるようにする。
+  const areaData = useMemo(() => {
+    if (!stacked) return data;
+    return data.map((row) => {
+      const full: Record<string, number | string> = { ...row };
+      for (const s of series) if (full[s.key] == null) full[s.key] = 0;
+      return full;
+    });
+  }, [stacked, data, series]);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
@@ -176,36 +189,65 @@ export default function HistoryPage() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={420}>
-            <LineChart data={data} margin={{ top: 8, right: 12, bottom: 8, left: -8 }}>
-              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-              <XAxis
-                dataKey="t"
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
-                minTickGap={40}
-                stroke="#e2e8f0"
-              />
-              <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} stroke="#e2e8f0" />
-              <Tooltip content={<ChartTooltip series={series} hidden={hidden} accent={accent} />} />
-              {series.map((s) => {
-                const dim = hover !== null && hover !== s.key;
-                return (
-                  <Line
-                    key={s.key}
-                    type="monotone"
-                    dataKey={s.key}
-                    name={s.name}
-                    stroke={s.color}
-                    strokeWidth={hover === s.key ? 3.5 : 2}
-                    strokeOpacity={dim ? 0.12 : 1}
-                    dot={false}
-                    activeDot={{ r: 3.5 }}
-                    connectNulls={false}
-                    hide={hidden.has(s.key)}
-                    isAnimationActive={false}
-                  />
-                );
-              })}
-            </LineChart>
+            {stacked ? (
+              // 長期間(3日以上)は積み上げエリア。上端のシルエットで全体の推移が繋がって見え、
+              // 色帯で各chの占有も分かる。欠けは0埋め(areaData)で面を連続させる。
+              <AreaChart data={areaData} margin={{ top: 8, right: 12, bottom: 8, left: -8 }}>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="t" tick={{ fill: "#94a3b8", fontSize: 11 }} minTickGap={30} stroke="#e2e8f0" />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} stroke="#e2e8f0" />
+                <Tooltip content={<ChartTooltip series={series} hidden={hidden} accent={accent} showTotal />} />
+                {series.map((s) => {
+                  const dim = hover !== null && hover !== s.key;
+                  return (
+                    <Area
+                      key={s.key}
+                      type="monotone"
+                      stackId="v"
+                      dataKey={s.key}
+                      name={s.name}
+                      stroke={s.color}
+                      strokeWidth={hover === s.key ? 2.5 : 1.25}
+                      fill={s.color}
+                      fillOpacity={dim ? 0.05 : 0.4}
+                      hide={hidden.has(s.key)}
+                      isAnimationActive={false}
+                    />
+                  );
+                })}
+              </AreaChart>
+            ) : (
+              <LineChart data={data} margin={{ top: 8, right: 12, bottom: 8, left: -8 }}>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="t"
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  minTickGap={40}
+                  stroke="#e2e8f0"
+                />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} stroke="#e2e8f0" />
+                <Tooltip content={<ChartTooltip series={series} hidden={hidden} accent={accent} />} />
+                {series.map((s) => {
+                  const dim = hover !== null && hover !== s.key;
+                  return (
+                    <Line
+                      key={s.key}
+                      type="monotone"
+                      dataKey={s.key}
+                      name={s.name}
+                      stroke={s.color}
+                      strokeWidth={hover === s.key ? 3.5 : 2}
+                      strokeOpacity={dim ? 0.12 : 1}
+                      dot={false}
+                      activeDot={{ r: 3.5 }}
+                      connectNulls={false}
+                      hide={hidden.has(s.key)}
+                      isAnimationActive={false}
+                    />
+                  );
+                })}
+              </LineChart>
+            )}
           </ResponsiveContainer>
         )}
       </div>
@@ -257,7 +299,11 @@ export default function HistoryPage() {
       )}
 
       <p className="mt-4 px-1 text-xs text-slate-400">
-        ピーク視聴者数が多い上位12チャンネルを、{aggLabel(hours)}のピークで表示しています。凡例をクリックで表示/非表示、ホバーで強調できます。
+        ピーク視聴者数が多い上位12チャンネルを、{aggLabel(hours)}のピークで表示しています。
+        {stacked
+          ? "積み上げエリアの合計(上端)は各chピークの和で、おおよそのボリュームの目安です。"
+          : ""}
+        凡例をクリックで表示/非表示、ホバーで強調できます。
       </p>
       <p className="mt-2 px-1 text-xs text-slate-400">
         本サイトは非公式のファン制作サイトです。任天堂株式会社および各権利者とは一切関係ありません。
@@ -273,6 +319,7 @@ function ChartTooltip({
   series,
   hidden,
   accent,
+  showTotal,
 }: {
   active?: boolean;
   label?: string;
@@ -280,6 +327,7 @@ function ChartTooltip({
   series: Series[];
   hidden: Set<string>;
   accent: string;
+  showTotal?: boolean;
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const metaByKey = new Map(series.map((s) => [s.key, s]));
@@ -288,6 +336,7 @@ function ChartTooltip({
     .filter((r) => r.meta && !hidden.has(r.meta.key) && typeof r.value === "number")
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   if (rows.length === 0) return null;
+  const total = rows.reduce((sum, r) => sum + (r.value ?? 0), 0);
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
       <div className="mb-1 font-bold text-slate-500">{label ?? ""}</div>
@@ -305,6 +354,12 @@ function ChartTooltip({
           </li>
         ))}
       </ul>
+      {showTotal && (
+        <div className="mt-1 flex items-center gap-2 border-t border-slate-100 pt-1 text-slate-500">
+          <span className="text-[11px]">合計（目安）</span>
+          <span className="ml-auto font-bold tabular-nums text-slate-700">{total.toLocaleString()}</span>
+        </div>
+      )}
     </div>
   );
 }
