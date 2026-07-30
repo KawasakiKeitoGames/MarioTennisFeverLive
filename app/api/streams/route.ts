@@ -21,6 +21,20 @@ export async function GET() {
     .select("captured_at")
     .maybeSingle();
 
+  // PF別の最新取得時刻。YouTube と Twitch は収集間隔が異なる（Twitchは短間隔）ため、
+  // 画面で「いつ取得したか」を別々に表示できるよう個別に返す。
+  const { data: lcp } = await supabase
+    .from("latest_capture_by_platform")
+    .select("platform, captured_at");
+  const capByPf = new Map<string, string>(
+    (lcp ?? []).map((r) => [r.platform as string, r.captured_at as string]),
+  );
+
+  // 本日ピーク・前回比（▲▼）用の集計。1行返るだけなので egress は極小。
+  const { data: stats, error: statsErr } = await supabase.rpc("today_viewer_stats");
+  if (statsErr) console.error("[streams] today_viewer_stats失敗:", statsErr.message);
+  const st = Array.isArray(stats) ? stats[0] : stats;
+
   // バッジ用の集計（連続配信日数・配信開始検知時刻・視聴者トレンド）を合流させる。
   // 集計に失敗してもバッジ無しで一覧は返す（badges を null 扱いにするだけ）。
   const { data: badges, error: badgeErr } = await supabase.rpc("current_stream_badges");
@@ -45,6 +59,11 @@ export async function GET() {
 
   return NextResponse.json({
     captured_at: capturedAt,
+    captured_at_youtube: capByPf.get("youtube") ?? null,
+    captured_at_twitch: capByPf.get("twitch") ?? null,
+    previous_total: st?.previous_total ?? null,
+    peak_viewers: st?.peak ?? null,
+    peak_at: st?.peak_at ?? null,
     youtube,
     twitch,
   });

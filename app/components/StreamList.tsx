@@ -3,7 +3,7 @@
 import type { StreamSnapshot, Platform } from "@/lib/types";
 import { trackClick } from "@/lib/track";
 
-type SortKey = "viewers" | "name";
+type SortKey = "viewers" | "name" | "elapsed";
 
 function fmt(n: number | null): string {
   return n == null ? "—" : n.toLocaleString("ja-JP");
@@ -48,6 +48,13 @@ function elapsedLabel(startedAt: string | null | undefined, nowIso: string | nul
   const h = Math.floor(min / 60);
   const m = min % 60;
   return m === 0 ? `${h}時間経過` : `${h}時間${m}分経過`;
+}
+
+// 経過時間順の並び替え用。started_at からの経過ミリ秒。開始不明(-1)は末尾に沈める。
+function elapsedMs(s: StreamSnapshot, nowIso: string | null): number {
+  if (!s.started_at) return -1;
+  const end = nowIso ? new Date(nowIso).getTime() : Date.now();
+  return end - new Date(s.started_at).getTime();
 }
 
 // 視聴者数トレンドの見た目（横ばいは表示しない＝上昇/下降のときだけバッジを出す）
@@ -98,26 +105,15 @@ export default function StreamList({
     if (sortKey === "name") {
       return (a.channel_name ?? "").localeCompare(b.channel_name ?? "", "ja");
     }
+    if (sortKey === "elapsed") {
+      // 経過が長い順（開始不明は末尾）
+      return elapsedMs(b, capturedAt) - elapsedMs(a, capturedAt);
+    }
     return (b.viewers ?? 0) - (a.viewers ?? 0);
   });
 
-  const ytCount = streams.filter((s) => s.platform === "youtube").length;
-  const twCount = streams.filter((s) => s.platform === "twitch").length;
-
   return (
     <section className="mb-6">
-      {/* 内訳（PFで分けない代わりに件数だけ小さく表示） */}
-      <div className="mb-2 flex items-center gap-3 px-1 text-xs text-slate-500">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-youtube" />
-          YouTube <span className="font-bold text-slate-700">{ytCount}</span>
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-twitch" />
-          Twitch <span className="font-bold text-slate-700">{twCount}</span>
-        </span>
-      </div>
-
       {sorted.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-400 shadow-sm">
           いま配信中のチャンネルはありません。
