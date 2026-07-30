@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
@@ -13,32 +11,13 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import Timeline, { type Session } from "./Timeline";
 
-type Platform = "twitch" | "youtube";
-
-interface Point {
-  bucket: string;
-  channel_name: string | null;
-  viewers: number | null;
-  is_portrait?: boolean | null;
+type Platform = "all" | "youtube" | "twitch";
+interface TotalPoint {
+  t: number; // epoch ms
+  total: number;
 }
-
-interface Series {
-  key: string; // channel_name（表示名と同じ・同一PF内で一意）
-  name: string;
-  color: string;
-  peak: number;
-  portrait: boolean; // 縦画面配信（YouTube Shortsライブ等）
-}
-
-// 白背景で視認できる濃いめの配色（チャンネルごとに固有色）
-const PALETTE = [
-  "#ef4444", "#8b5cf6", "#0ea5e9", "#f59e0b", "#10b981", "#ec4899",
-  "#6366f1", "#14b8a6", "#f97316", "#84cc16", "#a855f7", "#0891b2",
-];
-
-const TWITCH = "#9146ff";
-const YOUTUBE = "#e62117";
 
 const RANGES = [
   { label: "6時間", hours: 6 },
@@ -47,89 +26,69 @@ const RANGES = [
   { label: "7日", hours: 168 },
   { label: "30日", hours: 720 },
 ];
+const PLATFORMS: { key: Platform; label: string }[] = [
+  { key: "all", label: "合算" },
+  { key: "youtube", label: "YouTube" },
+  { key: "twitch", label: "Twitch" },
+];
+const BRAND = "#1f9d4d";
+const YOUTUBE = "#e62117";
+const TWITCH = "#9146ff";
 
-// 期間ごとの集計単位（サーバの bucketMinutesFor と対応）を人間向けに説明する。
-function aggLabel(hours: number): string {
-  if (hours <= 6) return "10分ごと";
-  if (hours <= 24) return "20分ごと";
-  if (hours <= 72) return "2時間ごと";
-  if (hours <= 168) return "6時間ごと";
-  return "1日ごと";
+// X軸ラベル（JST）。期間が長いほど日付主体に。
+function jstAxis(t: number, hours: number): string {
+  const d = new Date(t);
+  const o: Intl.DateTimeFormatOptions = { timeZone: "Asia/Tokyo", hour12: false };
+  if (hours <= 24) return d.toLocaleTimeString("ja-JP", { ...o, hour: "2-digit", minute: "2-digit" });
+  if (hours <= 72) return d.toLocaleString("ja-JP", { ...o, month: "numeric", day: "numeric", hour: "2-digit" });
+  return d.toLocaleDateString("ja-JP", { ...o, month: "numeric", day: "numeric" });
 }
 
-// バケット時刻のラベル。期間が長いほど日付主体にする。
-function label(iso: string, hours: number): string {
-  const d = new Date(iso);
-  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  const md = `${d.getMonth() + 1}/${d.getDate()}`;
-  if (hours <= 24) return hm;
-  if (hours <= 168) return `${md} ${hm}`;
-  return md;
+// ツールチップ用のフル日時（JST）。
+function jstFull(t: number): string {
+  return new Date(t).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 export default function HistoryPage() {
   const [hours, setHours] = useState(24);
-  const [platform, setPlatform] = useState<Platform>("youtube");
-  const [points, setPoints] = useState<Point[]>([]);
+  const [platform, setPlatform] = useState<Platform>("all");
+  const [points, setPoints] = useState<TotalPoint[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [now, setNow] = useState<number>(Date.now());
   const [loading, setLoading] = useState(true);
-
-  // 凡例操作：hover=強調（他を淡く）、hidden=クリックで非表示トグル
-  const [hover, setHover] = useState<string | null>(null);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setLoading(true);
-    setHidden(new Set()); // プラットフォーム切替時は表示状態をリセット
-    fetch(`/api/history?hours=${hours}&platform=${platform}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setPoints(d.points ?? []))
+    const pfq = platform === "all" ? "" : `&platform=${platform}`;
+    Promise.all([
+      fetch(`/api/history/total?hours=${hours}${pfq}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/history/sessions?hours=${hours}`, { cache: "no-store" }).then((r) => r.json()),
+    ])
+      .then(([tot, ses]) => {
+        setPoints(tot.points ?? []);
+        setNow(tot.now ?? Date.now());
+        setSessions(ses.sessions ?? []);
+      })
       .finally(() => setLoading(false));
   }, [hours, platform]);
 
-  // points（PF絞り込み・時間バケット集計・上位12ch 済み）を
-  // {time -> {channel -> viewers}} のワイド形式へ整形し、系列メタも作る。
-  const { data, series } = useMemo(() => {
-    const peak = new Map<string, number>();
-    const portrait = new Map<string, boolean>();
-    for (const p of points) {
-      const c = p.channel_name ?? "?";
-      peak.set(c, Math.max(peak.get(c) ?? 0, p.viewers ?? 0));
-      if (p.is_portrait) portrait.set(c, true);
-    }
-    const series: Series[] = [...peak.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([c, pk], i) => ({
-        key: c,
-        name: c,
-        color: PALETTE[i % PALETTE.length],
-        peak: pk,
-        portrait: portrait.get(c) ?? false,
-      }));
+  const winStart = now - hours * 3600e3;
+  const winEnd = now;
 
-    // iso をキーに時刻順で並べ、X軸ラベル(t)は表示用文字列にする（データがある時点のみ）。
-    const byTime = new Map<string, Record<string, number | string>>();
-    for (const p of points) {
-      const c = p.channel_name ?? "?";
-      const iso = p.bucket;
-      if (!byTime.has(iso)) byTime.set(iso, { t: label(iso, hours) });
-      byTime.get(iso)![c] = p.viewers ?? 0;
-    }
-    const data = [...byTime.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
-    return { data, series };
-  }, [points, hours]);
+  const tlSessions = useMemo(
+    () => (platform === "all" ? sessions : sessions.filter((s) => s.platform === platform)),
+    [sessions, platform],
+  );
 
-  const accent = platform === "twitch" ? TWITCH : YOUTUBE;
-  const stacked = hours >= 72; // 3日以上は積み上げエリアグラフ
-
-  // 積み上げエリア用：欠けを0で埋め、面が途切れず連続した推移として見えるようにする。
-  const areaData = useMemo(() => {
-    if (!stacked) return data;
-    return data.map((row) => {
-      const full: Record<string, number | string> = { ...row };
-      for (const s of series) if (full[s.key] == null) full[s.key] = 0;
-      return full;
-    });
-  }, [stacked, data, series]);
+  const accent = platform === "twitch" ? TWITCH : platform === "youtube" ? YOUTUBE : BRAND;
+  const peak = points.reduce((m, p) => Math.max(m, p.total), 0);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
@@ -140,29 +99,32 @@ export default function HistoryPage() {
         視聴者数の<span className="text-brand">推移</span>
       </h1>
       <p className="mt-2 text-sm text-slate-500">
-        同時視聴者数の時系列。線の途切れは、その時間に配信していなかったことを表します。
+        上：総同時視聴者数のうごき／下：どのチャンネルがいつ配信していたか。
       </p>
 
+      {/* コントロール */}
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="flex items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">プラットフォーム</span>
-          {(["youtube", "twitch"] as const).map((p) => (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="mr-1 text-xs text-slate-400">対象</span>
+          {PLATFORMS.map((p) => (
             <button
-              key={p}
-              onClick={() => setPlatform(p)}
+              key={p.key}
+              onClick={() => setPlatform(p.key)}
               className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
-                platform === p
-                  ? p === "twitch"
+                platform === p.key
+                  ? p.key === "twitch"
                     ? "border-twitch bg-twitch/10 text-twitch"
-                    : "border-youtube bg-youtube/10 text-youtube"
+                    : p.key === "youtube"
+                      ? "border-youtube bg-youtube/10 text-youtube"
+                      : "border-brand bg-brand/10 text-brand"
                   : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
-              {p === "twitch" ? "Twitch" : "YouTube"}
+              {p.label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <span className="mr-1 text-xs text-slate-400">期間</span>
           {RANGES.map((r) => (
             <button
@@ -180,130 +142,72 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      {/* 総同時視聴者数の推移 */}
+      <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="mb-2 flex items-baseline justify-between px-1">
+          <h2 className="text-sm font-bold text-slate-700">総同時視聴者数</h2>
+          <span className="text-xs text-slate-400">
+            ピーク{" "}
+            <span className="font-bold tabular-nums" style={{ color: accent }}>
+              {peak.toLocaleString()}
+            </span>{" "}
+            人
+          </span>
+        </div>
         {loading ? (
-          <div className="flex h-[420px] items-center justify-center text-slate-400">読み込み中…</div>
-        ) : series.length === 0 ? (
-          <div className="flex h-[420px] items-center justify-center text-slate-400">
+          <div className="flex h-[240px] items-center justify-center text-slate-400">読み込み中…</div>
+        ) : points.length === 0 ? (
+          <div className="flex h-[240px] items-center justify-center text-slate-400">
             この期間のデータはまだありません。
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={420}>
-            {stacked ? (
-              // 長期間(3日以上)は積み上げエリア。上端のシルエットで全体の推移が繋がって見え、
-              // 色帯で各chの占有も分かる。欠けは0埋め(areaData)で面を連続させる。
-              <AreaChart data={areaData} margin={{ top: 8, right: 12, bottom: 8, left: -8 }}>
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="t" tick={{ fill: "#94a3b8", fontSize: 11 }} minTickGap={30} stroke="#e2e8f0" />
-                <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} stroke="#e2e8f0" />
-                <Tooltip content={<ChartTooltip series={series} hidden={hidden} accent={accent} showTotal />} />
-                {series.map((s) => {
-                  const dim = hover !== null && hover !== s.key;
-                  return (
-                    <Area
-                      key={s.key}
-                      type="monotone"
-                      stackId="v"
-                      dataKey={s.key}
-                      name={s.name}
-                      stroke={s.color}
-                      strokeWidth={hover === s.key ? 2.5 : 1.25}
-                      fill={s.color}
-                      fillOpacity={dim ? 0.05 : 0.4}
-                      hide={hidden.has(s.key)}
-                      isAnimationActive={false}
-                    />
-                  );
-                })}
-              </AreaChart>
-            ) : (
-              <LineChart data={data} margin={{ top: 8, right: 12, bottom: 8, left: -8 }}>
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="t"
-                  tick={{ fill: "#94a3b8", fontSize: 11 }}
-                  minTickGap={40}
-                  stroke="#e2e8f0"
-                />
-                <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} stroke="#e2e8f0" />
-                <Tooltip content={<ChartTooltip series={series} hidden={hidden} accent={accent} />} />
-                {series.map((s) => {
-                  const dim = hover !== null && hover !== s.key;
-                  return (
-                    <Line
-                      key={s.key}
-                      type="monotone"
-                      dataKey={s.key}
-                      name={s.name}
-                      stroke={s.color}
-                      strokeWidth={hover === s.key ? 3.5 : 2}
-                      strokeOpacity={dim ? 0.12 : 1}
-                      dot={false}
-                      activeDot={{ r: 3.5 }}
-                      connectNulls={false}
-                      hide={hidden.has(s.key)}
-                      isAnimationActive={false}
-                    />
-                  );
-                })}
-              </LineChart>
-            )}
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={points} margin={{ top: 8, right: 12, bottom: 4, left: -12 }}>
+              <defs>
+                <linearGradient id="totalFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accent} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={accent} stopOpacity={0.04} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="t"
+                type="number"
+                scale="time"
+                domain={[winStart, winEnd]}
+                tickFormatter={(v) => jstAxis(v as number, hours)}
+                tick={{ fill: "#94a3b8", fontSize: 11 }}
+                minTickGap={40}
+                stroke="#e2e8f0"
+              />
+              <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} stroke="#e2e8f0" width={44} />
+              <Tooltip content={<TotalTip accent={accent} />} />
+              <Area
+                type="monotone"
+                dataKey="total"
+                stroke={accent}
+                strokeWidth={2}
+                fill="url(#totalFill)"
+                isAnimationActive={false}
+              />
+            </AreaChart>
           </ResponsiveContainer>
         )}
-      </div>
+      </section>
 
-      {/* インタラクティブ凡例：ホバーで強調・クリックで表示/非表示 */}
-      {series.length > 0 && (
-        <ul className="mt-4 grid gap-x-4 gap-y-0.5 sm:grid-cols-2">
-          {series.map((s) => {
-            const off = hidden.has(s.key);
-            const dim = hover !== null && hover !== s.key;
-            return (
-              <li key={s.key}>
-                <button
-                  onMouseEnter={() => setHover(s.key)}
-                  onMouseLeave={() => setHover(null)}
-                  onClick={() =>
-                    setHidden((prev) => {
-                      const next = new Set(prev);
-                      next.has(s.key) ? next.delete(s.key) : next.add(s.key);
-                      return next;
-                    })
-                  }
-                  className={`flex w-full items-center gap-2 rounded px-1.5 py-0.5 text-left text-xs transition-colors hover:bg-slate-50 ${
-                    off ? "opacity-40" : dim ? "opacity-50" : ""
-                  }`}
-                >
-                  <svg width="22" height="8" aria-hidden className="shrink-0">
-                    <line x1="0" y1="4" x2="22" y2="4" stroke={s.color} strokeWidth="2.5" />
-                  </svg>
-                  <span className={`truncate ${off ? "line-through" : "font-semibold text-slate-600"}`}>
-                    {s.name}
-                  </span>
-                  {s.portrait && (
-                    <span
-                      title="縦画面の配信"
-                      className="shrink-0 rounded border border-fuchsia-200 bg-fuchsia-50 px-1 text-[9px] font-bold text-fuchsia-600"
-                    >
-                      📱縦
-                    </span>
-                  )}
-                  <span className="ml-auto shrink-0 tabular-nums text-slate-400">
-                    {s.peak.toLocaleString()}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {/* 配信タイムライン */}
+      <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <h2 className="mb-3 px-1 text-sm font-bold text-slate-700">配信タイムライン</h2>
+        {loading ? (
+          <div className="flex h-40 items-center justify-center text-slate-400">読み込み中…</div>
+        ) : (
+          <Timeline sessions={tlSessions} winStart={winStart} winEnd={winEnd} hours={hours} />
+        )}
+      </section>
 
       <p className="mt-4 px-1 text-xs text-slate-400">
-        ピーク視聴者数が多い上位12チャンネルを、{aggLabel(hours)}のピークで表示しています。
-        {stacked
-          ? "積み上げエリアの合計(上端)は各chピークの和で、おおよそのボリュームの目安です。"
-          : ""}
-        凡例をクリックで表示/非表示、ホバーで強調できます。
+        総同時視聴者数は各時点の YouTube＋Twitch の同時視聴合算です（配信のない時間帯は0）。
+        タイムラインの帯は配信していた時間、濃さはピーク視聴者数を表します。
       </p>
       <p className="mt-2 px-1 text-xs text-slate-400">
         本サイトは非公式のファン制作サイトです。任天堂株式会社および各権利者とは一切関係ありません。
@@ -312,54 +216,31 @@ export default function HistoryPage() {
   );
 }
 
-function ChartTooltip({
+function TotalTip({
   active,
   label,
   payload,
-  series,
-  hidden,
   accent,
-  showTotal,
 }: {
   active?: boolean;
-  label?: string;
-  payload?: { dataKey?: string | number; value?: number }[];
-  series: Series[];
-  hidden: Set<string>;
+  label?: number;
+  payload?: { value?: number }[];
   accent: string;
-  showTotal?: boolean;
 }) {
   if (!active || !payload || payload.length === 0) return null;
-  const metaByKey = new Map(series.map((s) => [s.key, s]));
-  const rows = payload
-    .map((p) => ({ meta: metaByKey.get(String(p.dataKey)), value: p.value }))
-    .filter((r) => r.meta && !hidden.has(r.meta.key) && typeof r.value === "number")
-    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  if (rows.length === 0) return null;
-  const total = rows.reduce((sum, r) => sum + (r.value ?? 0), 0);
+  const v = payload[0]?.value ?? 0;
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-      <div className="mb-1 font-bold text-slate-500">{label ?? ""}</div>
-      <ul className="space-y-0.5">
-        {rows.map((r) => (
-          <li key={r.meta!.key} className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: r.meta!.color }} />
-            <span className="max-w-[160px] truncate text-slate-700">
-              {r.meta!.portrait ? "📱 " : ""}
-              {r.meta!.name}
-            </span>
-            <span className="ml-auto font-bold tabular-nums" style={{ color: accent }}>
-              {(r.value as number).toLocaleString()}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {showTotal && (
-        <div className="mt-1 flex items-center gap-2 border-t border-slate-100 pt-1 text-slate-500">
-          <span className="text-[11px]">合計（目安）</span>
-          <span className="ml-auto font-bold tabular-nums text-slate-700">{total.toLocaleString()}</span>
-        </div>
-      )}
+      <div className="mb-0.5 font-bold text-slate-500">
+        {typeof label === "number" ? jstFull(label) : ""}
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-slate-600">同時視聴</span>
+        <span className="ml-auto font-bold tabular-nums" style={{ color: accent }}>
+          {(v as number).toLocaleString()}
+        </span>
+        <span className="text-slate-400">人</span>
+      </div>
     </div>
   );
 }

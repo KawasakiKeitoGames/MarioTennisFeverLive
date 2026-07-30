@@ -1,0 +1,33 @@
+import { NextResponse } from "next/server";
+import { createPublicClient } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic";
+
+// 配信タイムライン用の配信セッション（開始/終了/ピーク）を返す。DB側(stream_sessions)で集約済み。
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const hours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
+
+  const supabase = createPublicClient();
+  const { data, error } = await supabase.rpc("stream_sessions", { p_hours: hours });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const sessions = (
+    (data ?? []) as {
+      platform: "youtube" | "twitch";
+      channel_name: string;
+      session_start: string;
+      session_end: string;
+      peak: number;
+      avg_viewers: number;
+    }[]
+  ).map((r) => ({
+    platform: r.platform,
+    channel_name: r.channel_name,
+    start: new Date(r.session_start).getTime(),
+    end: new Date(r.session_end).getTime(),
+    peak: r.peak,
+    avg: r.avg_viewers,
+  }));
+  return NextResponse.json({ hours, now: Date.now(), sessions });
+}
