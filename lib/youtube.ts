@@ -24,10 +24,15 @@ const BASE = "https://www.googleapis.com/youtube/v3";
 // YouTube検索はキーワードが緩く、無関係な配信も拾う（例: 別ゲーム配信や、
 // 概要欄にゲーム名を列挙しているだけの雑談配信）。実際にプレイ中の配信は
 // タイトルにゲーム名を入れているため、タイトルにキーワードを含むものだけ残す。
+// タイトルの空白（半角/全角　）を無視して突き合わせる。「マリオテニス フィーバー」
+// のように語間に空白を挟むタイトルを取りこぼさないため。検索は既に緩く拾っているので、
+// この後フィルタを空白許容にするだけでよく、検索クォータの追加消費はない。
 const YT_KEYWORDS = ["マリオテニスフィーバー", "mario tennis fever"];
+const normalize = (s: string): string => s.toLowerCase().replace(/[\s　]+/g, "");
+const NORMALIZED_KEYWORDS = YT_KEYWORDS.map(normalize);
 function matchesGame(title: string): boolean {
-  const hay = title.toLowerCase();
-  return YT_KEYWORDS.some((k) => hay.includes(k));
+  const hay = normalize(title);
+  return NORMALIZED_KEYWORDS.some((k) => hay.includes(k));
 }
 
 interface SearchItem {
