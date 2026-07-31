@@ -20,6 +20,26 @@ interface ActivityRow {
   unique_streams: number;
   avg_concurrent: number;
   peak_concurrent: number;
+  avg_viewers: number;
+  peak_viewers: number;
+}
+interface Headline {
+  peak_viewers: number | null;
+  peak_at: string | null;
+  total_stream_hours: number | null;
+  active_channels: number | null;
+  span_days: number | null;
+}
+interface HighlightStream {
+  stream_id: string;
+  channel_name: string;
+  platform: string;
+  peak_viewers: number;
+  avg_viewers: number | null;
+  hours: number;
+  started_at: string | null;
+  title: string | null;
+  url: string | null;
 }
 interface HeatRow {
   dow: number;
@@ -54,12 +74,14 @@ interface Growth {
 }
 
 interface InsightsData {
+  headline: Headline | null;
   activity: ActivityRow[];
   heatmap: HeatRow[];
   new_channels: NewChannel[];
   hashtags: Hashtag[];
   appearances: Appearance[];
   growth: Growth[];
+  top_streams: HighlightStream[];
 }
 
 const PERIODS = [
@@ -67,6 +89,7 @@ const PERIODS = [
   { label: "30日", days: 30 },
   { label: "90日", days: 90 },
 ];
+const MIN_PERIOD = 7; // 常に選べる最小期間
 const PLATFORMS: { key: PlatformSel; label: string }[] = [
   { key: "all", label: "すべて" },
   { key: "youtube", label: "YouTube" },
@@ -112,7 +135,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 export default function AnalyticsPage() {
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(7);
   const [platform, setPlatform] = useState<PlatformSel>("all");
   const [d, setD] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,24 +153,27 @@ export default function AnalyticsPage() {
     () =>
       (d?.activity ?? []).map((r) => ({
         t: mdLabel(r.day),
-        ピーク同時配信: r.peak_concurrent,
-        平均同時配信: r.avg_concurrent,
-        ユニーク配信: r.unique_streams,
+        ピーク同時視聴: r.peak_viewers,
+        平均同時視聴: r.avg_viewers,
       })),
     [d],
   );
 
   const kpi = useMemo(() => {
-    const a = d?.activity ?? [];
-    const peak = a.reduce((m, r) => Math.max(m, r.peak_concurrent ?? 0), 0);
-    const avg = a.length ? a.reduce((s, r) => s + (r.avg_concurrent ?? 0), 0) / a.length : 0;
+    const h = d?.headline;
+    const top = d?.top_streams?.[0] ?? null;
     return {
-      peak,
-      avg: Math.round(avg * 10) / 10,
-      newCount: d?.new_channels?.length ?? 0,
-      tagCount: d?.hashtags?.length ?? 0,
+      peakViewers: h?.peak_viewers ?? 0,
+      peakAt: h?.peak_at ?? null,
+      totalHours: h?.total_stream_hours ?? 0,
+      activeChannels: h?.active_channels ?? 0,
+      recordViewers: top?.peak_viewers ?? 0,
+      recordChannel: top?.channel_name ?? null,
     };
   }, [d]);
+
+  const span = d?.headline?.span_days ?? 999; // データ蓄積日数（未取得時は全期間を許可）
+  const periodEnabled = (p: number) => p === MIN_PERIOD || span >= p;
 
   const heat = useMemo(() => {
     const map = new Map<number, number>();
@@ -195,39 +221,122 @@ export default function AnalyticsPage() {
         </div>
         <div className="flex items-center gap-1">
           <span className="mr-1 text-xs text-slate-400">期間</span>
-          {PERIODS.map((r) => (
-            <button
-              key={r.days}
-              onClick={() => setDays(r.days)}
-              className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
-                days === r.days
-                  ? "border-brand bg-brand/10 text-brand"
-                  : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+          {PERIODS.map((r) => {
+            const enabled = periodEnabled(r.days);
+            return (
+              <button
+                key={r.days}
+                onClick={() => enabled && setDays(r.days)}
+                disabled={!enabled}
+                title={enabled ? undefined : `データが${r.days}日分たまると選べます`}
+                className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+                  days === r.days
+                    ? "border-brand bg-brand/10 text-brand"
+                    : enabled
+                      ? "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+                      : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
+                }`}
+              >
+                {r.label}
+              </button>
+            );
+          })}
         </div>
+        {d?.headline?.span_days != null && (
+          <span className="text-[11px] text-slate-400">データ蓄積 {span}日</span>
+        )}
       </div>
 
       {loading ? (
         <div className="py-20 text-center text-slate-400">読み込み中…</div>
       ) : (
         <>
-          {/* KPI */}
+          {/* KPI（視聴者・人ベース） */}
           <div className="mt-5 grid grid-cols-2 gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-4 sm:p-4">
-            <Stat label="ピーク同時配信" value={fmt(kpi.peak)} sub="期間中の最大" />
-            <Stat label="平均同時配信" value={kpi.avg.toFixed(1)} />
-            <Stat label="新規参入ch" value={fmt(kpi.newCount)} sub="直近30日" />
-            <Stat label="人気タグ数" value={fmt(kpi.tagCount)} />
+            <Stat
+              label="ピーク同時視聴"
+              value={fmt(kpi.peakViewers)}
+              sub={kpi.peakAt ? `${dt(kpi.peakAt)} ごろ` : "期間中の最大"}
+            />
+            <Stat label="延べ配信時間" value={`${fmt(kpi.totalHours)}h`} sub="配信×時間" />
+            <Stat label="配信したch" value={fmt(kpi.activeChannels)} sub="期間内" />
+            <Stat
+              label="最高視聴の配信"
+              value={fmt(kpi.recordViewers)}
+              sub={kpi.recordChannel ?? "—"}
+            />
           </div>
+
+          {/* 配信ハイライト（記録） */}
+          <section className="mt-6">
+            <h2 className="mb-1 text-sm font-black text-slate-700">配信ハイライト（最高視聴）</h2>
+            <p className="mb-2 text-[11px] text-slate-400">
+              期間内でいちばん見られた配信の記録。ランクや大会の熱い瞬間が並びます。
+            </p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+              {(d?.top_streams ?? []).length === 0 ? (
+                <p className="text-xs text-slate-400">この期間の配信記録はまだありません。</p>
+              ) : (
+                <ol className="space-y-1.5">
+                  {(d?.top_streams ?? []).map((s, i) => {
+                    const row = (
+                      <>
+                        <span
+                          className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-black tabular-nums ${
+                            i === 0
+                              ? "bg-amber-100 text-amber-600"
+                              : i === 1
+                                ? "bg-slate-200 text-slate-600"
+                                : i === 2
+                                  ? "bg-orange-100 text-orange-500"
+                                  : "text-slate-400"
+                          }`}
+                        >
+                          {i + 1}
+                        </span>
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(s.platform)}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-bold text-slate-700">{s.channel_name}</div>
+                          <div className="truncate text-[11px] text-slate-400">
+                            {s.title ?? "（無題）"}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="font-black tabular-nums text-slate-900">
+                            {fmt(s.peak_viewers)}
+                            <span className="ml-0.5 text-[10px] font-normal text-slate-400">人</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">{dt(s.started_at)}</div>
+                        </div>
+                      </>
+                    );
+                    return (
+                      <li key={s.stream_id}>
+                        {s.url ? (
+                          <a
+                            href={s.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-sm transition-colors hover:bg-slate-50"
+                          >
+                            {row}
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-2.5 px-1.5 py-1.5 text-sm">{row}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
+          </section>
 
           {/* 盛り上がり推移 */}
           <section className="mt-6">
             <h2 className="mb-1 text-sm font-black text-slate-700">コミュニティの盛り上がり（日別）</h2>
             <p className="mb-2 text-[11px] text-slate-400">
-              同時配信数の推移。アップデートや大会の日ほど跳ねます。
+              同時視聴者数の推移（日別のピーク／平均）。アップデートや大会の日ほど跳ねます。
             </p>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               {activityChart.length === 0 ? (
@@ -249,8 +358,8 @@ export default function AnalyticsPage() {
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11, color: "#475569" }} />
-                    <Line type="monotone" dataKey="ピーク同時配信" stroke="#16a34a" strokeWidth={2} dot={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="平均同時配信" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="ピーク同時視聴" stroke="#16a34a" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="平均同時視聴" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
