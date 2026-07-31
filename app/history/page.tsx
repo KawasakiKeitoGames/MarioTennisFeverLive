@@ -100,6 +100,10 @@ export default function HistoryPage() {
       </h1>
       <p className="mt-2 text-sm text-slate-500">
         上：総同時視聴者数のうごき／下：どのチャンネルがいつ配信していたか。
+        ランキングや配信記録は{" "}
+        <Link href="/analytics" className="font-bold text-brand hover:underline">
+          配信ランキング・記録 →
+        </Link>
       </p>
 
       {/* コントロール */}

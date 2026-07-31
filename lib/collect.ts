@@ -41,7 +41,6 @@ async function saveCapture(
       viewers: s.viewers,
       language: s.language,
       url: s.url,
-      orientation: s.orientation,
     }));
     const { error } = await supabase.from("stream_snapshots").insert(rows);
     if (error) {

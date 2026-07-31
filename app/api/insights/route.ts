@@ -13,14 +13,13 @@ export async function GET(request: Request) {
 
   const supabase = createPublicClient();
 
-  const [headline, activity, heatmap, newCh, hashtags, appearances, growth, topStreams] =
+  const [headline, activity, heatmap, newCh, leaderboard, growth, topStreams] =
     await Promise.all([
       supabase.rpc("analytics_headline", { p_days: days, p_platform: platform }),
       supabase.rpc("daily_activity", { p_days: days, p_platform: platform }),
       supabase.rpc("hour_heatmap", { p_days: days, p_platform: platform }),
       supabase.rpc("new_channels", { p_days: Math.min(days, 30), p_limit: 30 }),
-      supabase.rpc("title_hashtags", { p_days: days, p_limit: 24, p_platform: platform }),
-      supabase.rpc("channel_appearances", { p_limit: 20, p_days: days, p_platform: platform }),
+      supabase.rpc("channel_leaderboard", { p_days: days, p_limit: 20, p_platform: platform }),
       supabase.rpc("channel_growth", { p_days: days, p_limit: 20 }),
       supabase.rpc("top_streams", { p_days: days, p_limit: 6, p_platform: platform }),
     ]);
@@ -30,8 +29,7 @@ export async function GET(request: Request) {
     activity.error ||
     heatmap.error ||
     newCh.error ||
-    hashtags.error ||
-    appearances.error ||
+    leaderboard.error ||
     growth.error ||
     topStreams.error;
   if (firstError) {
@@ -46,8 +44,7 @@ export async function GET(request: Request) {
     activity: activity.data ?? [],
     heatmap: heatmap.data ?? [],
     new_channels: newCh.data ?? [],
-    hashtags: hashtags.data ?? [],
-    appearances: appearances.data ?? [],
+    leaderboard: leaderboard.data ?? [],
     growth: growth.data ?? [],
     top_streams: topStreams.data ?? [],
     error: firstError?.message ?? null,

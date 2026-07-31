@@ -157,14 +157,6 @@ export default function StreamList({
                         <span className={`h-1 w-1 rounded-full ${st.dot}`} />
                         {st.label}
                       </span>
-                      {s.orientation === "portrait" && (
-                        <span
-                          title="縦画面の配信"
-                          className="shrink-0 inline-flex items-center gap-0.5 rounded border border-fuchsia-200 bg-fuchsia-50 px-1 py-0.5 text-[9px] font-bold text-fuchsia-600"
-                        >
-                          📱 縦
-                        </span>
-                      )}
                       {s.language && (
                         <span className="shrink-0 rounded border border-slate-200 px-1 py-0.5 text-[9px] font-medium uppercase text-slate-400">
                           {s.language}

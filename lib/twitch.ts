@@ -69,7 +69,6 @@ export async function fetchTwitchLive(
         viewers: s.viewer_count ?? 0,
         language: s.language ?? "",
         url: `https://www.twitch.tv/${login}`,
-        orientation: "landscape", // Twitchは仕様上すべて横（縦配信の概念なし）
       });
     }
     cursor = data.pagination?.cursor ?? "";

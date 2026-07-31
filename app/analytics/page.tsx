@@ -53,14 +53,13 @@ interface NewChannel {
   first_seen: string;
   appearances: number;
 }
-interface Hashtag {
-  tag: string;
-  uses: number;
-}
-interface Appearance {
+interface LeaderRow {
   channel_name: string;
   platform: string;
-  appearances: number;
+  stream_hours: number;
+  viewer_hours: number;
+  peak_viewers: number;
+  avg_viewers: number | null;
   last_seen: string;
 }
 interface Growth {
@@ -78,8 +77,7 @@ interface InsightsData {
   activity: ActivityRow[];
   heatmap: HeatRow[];
   new_channels: NewChannel[];
-  hashtags: Hashtag[];
-  appearances: Appearance[];
+  leaderboard: LeaderRow[];
   growth: Growth[];
   top_streams: HighlightStream[];
 }
@@ -186,8 +184,39 @@ export default function AnalyticsPage() {
   }, [d]);
 
   const hasGrowth = (d?.growth ?? []).some((g) => g.delta != null && g.delta !== 0);
-  const maxTag = Math.max(1, ...(d?.hashtags ?? []).map((h) => h.uses));
-  const maxApp = Math.max(1, ...(d?.appearances ?? []).map((a) => a.appearances));
+  const maxLeader = Math.max(1, ...(d?.leaderboard ?? []).map((c) => c.viewer_hours));
+
+  // ヒートマップ（曜日×時間の平均同時配信数）から「配信を見つけやすい時間帯」を導く。
+  const primeTime = useMemo(() => {
+    const rows = d?.heatmap ?? [];
+    if (rows.length === 0) return null;
+    const byHour = new Array(24).fill(0);
+    let weekend = 0;
+    let weekday = 0;
+    for (const r of rows) {
+      byHour[r.hour] += r.avg_concurrent;
+      if (r.dow === 0 || r.dow === 6) weekend += r.avg_concurrent;
+      else weekday += r.avg_concurrent;
+    }
+    const hourMax = Math.max(...byHour);
+    if (hourMax <= 0) return null;
+    // もっとも活発な連続3時間帯を探す
+    let bestStart = 0;
+    let bestSum = -1;
+    for (let h = 0; h < 24; h++) {
+      const sum = byHour[h] + byHour[(h + 1) % 24] + byHour[(h + 2) % 24];
+      if (sum > bestSum) {
+        bestSum = sum;
+        bestStart = h;
+      }
+    }
+    const wePerDay = weekend / 2;
+    const wdPerDay = weekday / 5;
+    const dayType = wePerDay > wdPerDay * 1.25 ? "土日" : wdPerDay > wePerDay * 1.25 ? "平日" : "ほぼ毎日";
+    const endHour = (bestStart + 3) % 24;
+    const endLabel = bestStart + 3 <= 24 ? bestStart + 3 : bestStart + 3 - 24; // 21〜24時 のように読ませる
+    return { start: bestStart, endHour, endLabel, dayType, byHour, hourMax };
+  }, [d]);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
@@ -195,10 +224,14 @@ export default function AnalyticsPage() {
         ← ライブボードに戻る
       </Link>
       <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-        配信<span className="text-brand">分析</span>
+        配信<span className="text-brand">ランキング</span>・記録
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-500">
-        マリオテニスフィーバーの配信シーンの傾向。収集済みデータだけから集計しています（閲覧時に外部APIは呼びません）。
+        誰が・どの配信が・いつ盛り上がっているか。収集済みデータだけから集計しています（閲覧時に外部APIは呼びません）。
+        時系列の細かい動きは{" "}
+        <Link href="/history" className="font-bold text-brand hover:underline">
+          視聴者数の推移 →
+        </Link>
       </p>
 
       {/* コントロール */}
@@ -246,6 +279,15 @@ export default function AnalyticsPage() {
           <span className="text-[11px] text-slate-400">データ蓄積 {span}日</span>
         )}
       </div>
+
+      {/* 低データ時の前向きな案内（30日ビューが未解放のあいだ） */}
+      {d?.headline?.span_days != null && span < 30 && (
+        <div className="mt-3 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+          📈 データ蓄積 <span className="font-bold text-brand">{span}日目</span>。30日ビューまであと{" "}
+          <span className="font-bold text-brand">{Math.max(1, 30 - span)}日</span>
+          。いまは直近{days}日ぶんで集計しています（日々たまるほど傾向が安定します）。
+        </div>
+      )}
 
       {loading ? (
         <div className="py-20 text-center text-slate-400">読み込み中…</div>
@@ -413,28 +455,82 @@ export default function AnalyticsPage() {
             </div>
           </section>
 
+          {/* 狙い目の時間帯（ヒートマップの要約インサイト・旧ハッシュタグ枠の差し替え） */}
+          {primeTime && (
+            <section className="mt-4">
+              <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4 shadow-sm">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-lg leading-none">🎯</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-slate-700">
+                      配信を見つけやすいのは{" "}
+                      <span className="text-brand">
+                        {primeTime.dayType}の {primeTime.start}〜{primeTime.endLabel}時ごろ
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      いちばん配信が重なりやすい時間帯です（日本時間）。
+                    </p>
+                    {/* 24時間ミニバー（緑=狙い目の3時間） */}
+                    <div className="mt-2 flex items-end gap-[2px]" style={{ height: 28 }}>
+                      {primeTime.byHour.map((v, h) => {
+                        const inBand =
+                          primeTime.start < primeTime.endHour
+                            ? h >= primeTime.start && h < primeTime.endHour
+                            : h >= primeTime.start || h < primeTime.endHour;
+                        const hgt = primeTime.hourMax > 0 ? Math.max(2, (v / primeTime.hourMax) * 28) : 2;
+                        return (
+                          <div
+                            key={h}
+                            title={`${h}時: 平均${Math.round(v * 10) / 10}配信`}
+                            className="flex-1 rounded-[1px]"
+                            style={{ height: hgt, background: inBand ? "#16a34a" : "#cbd5e1" }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="mt-1 flex justify-between text-[9px] text-slate-300">
+                      <span>0時</span>
+                      <span>6</span>
+                      <span>12</span>
+                      <span>18</span>
+                      <span>23時</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
           <div className="mt-6 grid gap-6 sm:grid-cols-2">
-            {/* 登場回数ランキング */}
+            {/* 配信者ランキング（盛り上がり順＝延べ視聴時間） */}
             <section>
-              <h2 className="mb-2 text-sm font-black text-slate-700">よく配信しているch（配信時間）</h2>
+              <h2 className="mb-2 text-sm font-black text-slate-700">配信者ランキング（盛り上がり順）</h2>
               <p className="mb-2 text-[11px] text-slate-400">
-                配信が観測された時間数（概算・h）。YouTube / Twitch の収集頻度差をならして公平に比較しています。
+                延べ視聴時間（同時視聴×時間の合計）で順位付け。YouTube / Twitch の収集頻度差はならして公平に比較しています。
               </p>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                {(d?.appearances ?? []).length === 0 ? (
+                {(d?.leaderboard ?? []).length === 0 ? (
                   <p className="text-xs text-slate-400">まだデータがありません。</p>
                 ) : (
-                  <ol className="space-y-2">
-                    {(d?.appearances ?? []).map((c, i) => (
+                  <ol className="space-y-2.5">
+                    {(d?.leaderboard ?? []).map((c, i) => (
                       <li key={i} className="flex items-center gap-2 text-sm">
                         <span className="w-5 shrink-0 text-right text-xs font-bold text-slate-400">{i + 1}</span>
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-slate-700">{c.channel_name}</div>
-                          <div className="mt-0.5 h-1 rounded-full bg-brand" style={{ width: `${Math.round((c.appearances / maxApp) * 100)}%` }} />
+                          <div
+                            className="mt-0.5 h-1 rounded-full bg-brand"
+                            style={{ width: `${Math.round((c.viewer_hours / maxLeader) * 100)}%` }}
+                          />
+                          <div className="mt-0.5 text-[10px] text-slate-400">
+                            配信{fmt(c.stream_hours)}h・ピーク{fmt(c.peak_viewers)}人
+                          </div>
                         </div>
-                        <span className="shrink-0 font-bold tabular-nums text-slate-900">
-                          {fmt(c.appearances)}<span className="ml-0.5 text-[10px] font-normal text-slate-400">h</span>
+                        <span className="shrink-0 text-right font-bold tabular-nums text-slate-900">
+                          {fmt(c.viewer_hours)}
+                          <span className="ml-0.5 text-[10px] font-normal text-slate-400">視聴h</span>
                         </span>
                       </li>
                     ))}
@@ -506,35 +602,6 @@ export default function AnalyticsPage() {
               </div>
             </section>
           )}
-
-          {/* ハッシュタグ傾向 */}
-          <section className="mt-6">
-            <h2 className="mb-1 text-sm font-black text-slate-700">タイトルのハッシュタグ傾向</h2>
-            <p className="mb-2 text-[11px] text-slate-400">
-              配信タイトルで使われている #タグ。今どのモードや大会が話題かの目安です。
-            </p>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              {(d?.hashtags ?? []).length === 0 ? (
-                <p className="text-xs text-slate-400">ハッシュタグ付きのタイトルがまだありません。</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {(d?.hashtags ?? []).map((h) => {
-                    const scale = 12 + Math.round((h.uses / maxTag) * 8);
-                    return (
-                      <span
-                        key={h.tag}
-                        className="inline-flex items-center gap-1 rounded-lg bg-brand/10 px-2.5 py-1 font-bold text-brand"
-                        style={{ fontSize: `${scale}px` }}
-                      >
-                        {h.tag}
-                        <span className="text-[10px] font-normal text-brand/70">{h.uses}</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
 
           <p className="mt-8 border-t border-slate-200 pt-4 text-xs leading-relaxed text-slate-400">
             本サイトは非公式のファン制作サイトです。任天堂株式会社および各権利者とは一切関係ありません。

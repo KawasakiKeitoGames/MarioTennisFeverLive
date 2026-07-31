@@ -238,10 +238,10 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-3">
           <Link href="/analytics" className="text-xs font-bold text-brand hover:underline">
-            分析 →
+            ランキング・記録 →
           </Link>
           <Link href="/history" className="text-xs font-bold text-brand hover:underline">
-            推移を見る →
+            推移 →
           </Link>
         </div>
       </div>
