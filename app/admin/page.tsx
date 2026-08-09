@@ -1,5 +1,15 @@
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase";
+import {
+  YT_SCHEDULE,
+  YT_DAILY_CAPTURES,
+  YT_UNITS_PER_CAPTURE,
+  YT_DAILY_QUOTA,
+  TW_EXPECTED_MIN,
+  currentJstHour,
+  ytExpectedMin,
+  jstTodayStartUtc,
+} from "@/lib/schedule";
 import { Toolbar, DeleteSnapshotButton } from "./Actions";
 import AnalyticsChart, { type DailyRow } from "./AnalyticsChart";
 
@@ -40,6 +50,11 @@ function dt(iso: string | null): string {
   return `${p("month")}/${p("day")} ${p("hour")}:${p("minute")}`;
 }
 
+function dayMd(ymd: string): string {
+  const [, m, d] = ymd.split("-");
+  return `${Number(m)}/${Number(d)}`;
+}
+
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
@@ -70,7 +85,11 @@ export default async function AdminPage({
   const supabase = createServiceClient();
 
   const [
-    capturesRes,
+    ytCapsRes,
+    twCapsRes,
+    ytTodayRes,
+    jobsRes,
+    enrichDaysRes,
     snapCountRes,
     summaryRes,
     viewDailyRes,
@@ -84,8 +103,26 @@ export default async function AdminPage({
     supabase
       .from("captures")
       .select("captured_at,platform,count")
+      .eq("platform", "youtube")
       .order("captured_at", { ascending: false })
-      .limit(40),
+      .limit(20),
+    supabase
+      .from("captures")
+      .select("captured_at,platform,count")
+      .eq("platform", "twitch")
+      .order("captured_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("captures")
+      .select("*", { count: "exact", head: true })
+      .eq("platform", "youtube")
+      .gte("captured_at", jstTodayStartUtc().toISOString()),
+    supabase.rpc("admin_job_health"),
+    supabase
+      .from("channel_stats_daily")
+      .select("day")
+      .order("day", { ascending: false })
+      .limit(300),
     supabase.from("stream_snapshots").select("*", { count: "exact", head: true }),
     supabase.rpc("analytics_summary", { p_days: days }),
     supabase.rpc("events_daily", { p_days: days, p_type: "view" }),
@@ -101,14 +138,32 @@ export default async function AdminPage({
       .limit(20),
   ]);
 
-  const captures = (capturesRes.data ?? []) as {
-    captured_at: string;
-    platform: string;
-    count: number;
-  }[];
-  const ytCaps = captures.filter((c) => c.platform === "youtube");
-  const twCaps = captures.filter((c) => c.platform === "twitch");
+  type CaptureRow = { captured_at: string; platform: string; count: number };
+  const ytCaps = (ytCapsRes.data ?? []) as CaptureRow[];
+  const twCaps = (twCapsRes.data ?? []) as CaptureRow[];
   const snapCount = snapCountRes.count ?? 0;
+
+  // 本日(JST)のYouTube収集回数 → クォータ消費の目安
+  const ytTodayCount = ytTodayRes.count ?? 0;
+  const ytTodayUnits = ytTodayCount * YT_UNITS_PER_CAPTURE;
+
+  // pg_cron ジョブ稼働状況（admin_job_health RPC）
+  const jobs = (jobsRes.data ?? []) as {
+    jobname: string;
+    active: boolean;
+    schedule: string;
+    last_success: string | null;
+    last_run: string | null;
+    last_status: string | null;
+    fails_24h: number;
+  }[];
+
+  // エンリッチの最新日とそのチャンネル数
+  const enrichDays = (enrichDaysRes.data ?? []) as { day: string }[];
+  const enrichLatestDay = enrichDays[0]?.day ?? null;
+  const enrichLatestCount = enrichLatestDay
+    ? enrichDays.filter((d) => d.day === enrichLatestDay).length
+    : 0;
 
   const summary = (summaryRes.data?.[0] ?? { views: 0, clicks: 0, uniques: 0 }) as {
     views: number;
@@ -151,20 +206,10 @@ export default async function AdminPage({
   }[];
   const recentSnaps = (recentSnapsRes.data ?? []) as SnapshotRow[];
 
-  // 現在のJST時刻（時）。YouTube の想定間隔は時間帯別なのでこれを使う。
-  const jstHour = Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Tokyo",
-      hour: "2-digit",
-      hour12: false,
-    }).format(new Date()),
-  ) % 24;
-  // YouTube の時間帯別想定間隔（JST）。pg_cron のスケジュールと一致させること。
-  //   20:00〜翌1:00 ゴールデン … 6分 / 18:00〜20:00 … 15分 / 12:00〜13:00 … 10分
-  //   それ以外（1:00〜12:00 / 13:00〜18:00）… 30分
-  const ytExpected =
-    jstHour >= 20 || jstHour < 1 ? 6 : jstHour >= 18 ? 15 : jstHour === 12 ? 10 : 30;
-  const twExpected = 2; // Twitch は終日2分間隔（別ジョブ）
+  // 現在のJST時刻（時）。YouTube の想定間隔は時間帯別（lib/schedule.ts が唯一の定義）。
+  const jstHour = currentJstHour();
+  const ytExpected = ytExpectedMin(jstHour);
+  const twExpected = TW_EXPECTED_MIN;
 
   // PF別に「最新収集時刻・直近間隔・欠測判定」を計算する。
   // 欠測は想定間隔の約3倍（＝2回連続スキップ）を超えたら「停止の可能性」とする。
@@ -236,8 +281,77 @@ export default async function AdminPage({
             </div>
           ))}
         </div>
-        <div className="mt-2.5">
+        <div className="mt-2.5 grid grid-cols-3 gap-2.5">
           <Stat label="累計スナップショット" value={fmt(snapCount)} />
+          <Stat
+            label="本日のYTクォータ目安"
+            value={`${fmt(ytTodayUnits)}`}
+            sub={`/ ${fmt(YT_DAILY_QUOTA)} units（${ytTodayCount}回収集）`}
+          />
+          <Stat
+            label="エンリッチ最新"
+            value={enrichLatestDay ? dayMd(enrichLatestDay) : "—"}
+            sub={enrichLatestDay ? `${enrichLatestCount}ch分` : "データなし"}
+          />
+        </div>
+      </section>
+
+      {/* pg_cron ジョブ稼働状況 */}
+      <section className="mb-8">
+        <h2 className="mb-1 text-sm font-black text-slate-700">ジョブ稼働状況（pg_cron）</h2>
+        <p className="mb-2 text-[11px] text-slate-400">
+          収集・エンリッチ（登録者数など・毎日17:30）・掃除（毎日2:00）の全ジョブの実行結果です。
+        </p>
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                <th className="px-4 py-2 font-medium">ジョブ</th>
+                <th className="px-4 py-2 font-medium">最終成功</th>
+                <th className="px-4 py-2 font-medium">直近の結果</th>
+                <th className="px-4 py-2 font-medium tabular-nums">24h失敗</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((j) => {
+                const sinceSuccessH = j.last_success
+                  ? (Date.now() - new Date(j.last_success).getTime()) / 3600000
+                  : Infinity;
+                // 最長間隔のジョブでも1日1回。26時間成功が無ければ停止扱い。
+                const stale = sinceSuccessH > 26 || !j.active;
+                const failed = j.last_status != null && j.last_status !== "succeeded";
+                return (
+                  <tr key={j.jobname} className="border-b border-slate-50 last:border-0">
+                    <td className="px-4 py-2 font-mono text-xs text-slate-700">
+                      {j.jobname}
+                      {!j.active && (
+                        <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+                          無効
+                        </span>
+                      )}
+                    </td>
+                    <td className={`px-4 py-2 text-xs ${stale ? "font-bold text-amber-600" : "text-slate-600"}`}>
+                      {relative(j.last_success)}
+                      {stale && " ⚠️"}
+                    </td>
+                    <td className={`px-4 py-2 text-xs ${failed ? "font-bold text-red-600" : "text-slate-500"}`}>
+                      {j.last_status === "succeeded" ? "成功" : (j.last_status ?? "—")}
+                    </td>
+                    <td className={`px-4 py-2 tabular-nums text-xs ${j.fails_24h > 0 ? "font-bold text-red-600" : "text-slate-500"}`}>
+                      {j.fails_24h}
+                    </td>
+                  </tr>
+                );
+              })}
+              {jobs.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-xs text-slate-400">
+                    ジョブ情報を取得できませんでした（admin_job_health RPC 未適用の可能性）。
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -334,30 +448,42 @@ export default async function AdminPage({
         </div>
       </section>
 
-      {/* 直近captures */}
+      {/* 直近captures（PF別。Twitchは2分間隔で流れが速いため混ぜると YouTube が埋もれる） */}
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-black text-slate-700">直近の取得履歴</h2>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                <th className="px-4 py-2 font-medium">取得時刻</th>
-                <th className="px-4 py-2 font-medium">プラットフォーム</th>
-                <th className="px-4 py-2 font-medium tabular-nums">配信数</th>
-              </tr>
-            </thead>
-            <tbody>
-              {captures.map((c, i) => (
-                <tr key={`${c.captured_at}-${c.platform}-${i}`} className="border-b border-slate-50 last:border-0">
-                  <td className="px-4 py-2 text-slate-600">{dt(c.captured_at)}</td>
-                  <td className="px-4 py-2 text-xs text-slate-500">
-                    {c.platform === "twitch" ? "Twitch" : "YouTube"}
-                  </td>
-                  <td className="px-4 py-2 font-bold tabular-nums text-slate-900">{c.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(
+            [
+              { key: "YouTube", caps: ytCaps },
+              { key: "Twitch", caps: twCaps },
+            ] as const
+          ).map(({ key, caps }) => (
+            <div key={key} className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                    <th className="px-4 py-2 font-medium">{key}</th>
+                    <th className="px-4 py-2 font-medium tabular-nums">配信数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {caps.map((c, i) => (
+                    <tr key={`${c.captured_at}-${i}`} className="border-b border-slate-50 last:border-0">
+                      <td className="px-4 py-2 text-slate-600">{dt(c.captured_at)}</td>
+                      <td className="px-4 py-2 font-bold tabular-nums text-slate-900">{c.count}</td>
+                    </tr>
+                  ))}
+                  {caps.length === 0 && (
+                    <tr>
+                      <td colSpan={2} className="px-4 py-4 text-center text-xs text-slate-400">
+                        まだ取得がありません。
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -451,14 +577,7 @@ export default async function AdminPage({
               </tr>
             </thead>
             <tbody>
-              {[
-                { range: "20:00〜翌1:00（ゴールデン）", every: 6, count: 50, hours: [20, 21, 22, 23, 0] },
-                { range: "18:00〜20:00", every: 15, count: 8, hours: [18, 19] },
-                { range: "13:00〜18:00", every: 30, count: 10, hours: [13, 14, 15, 16, 17] },
-                { range: "12:00〜13:00（お昼）", every: 10, count: 6, hours: [12] },
-                { range: "5:00〜12:00", every: 30, count: 14, hours: [5, 6, 7, 8, 9, 10, 11] },
-                { range: "1:00〜5:00（深夜）", every: 30, count: 8, hours: [1, 2, 3, 4] },
-              ].map((b) => {
+              {YT_SCHEDULE.map((b) => {
                 // 「いまここ」は間隔ではなく現在の時間帯（JST時）で判定する。
                 const active = b.hours.includes(jstHour);
                 return (
@@ -484,7 +603,7 @@ export default async function AdminPage({
               <tr className="border-t border-slate-100 text-xs text-slate-500">
                 <td className="px-4 py-2 font-bold">合計</td>
                 <td className="px-4 py-2"></td>
-                <td className="px-4 py-2 font-bold tabular-nums">96回/日</td>
+                <td className="px-4 py-2 font-bold tabular-nums">{YT_DAILY_CAPTURES}回/日</td>
               </tr>
             </tfoot>
           </table>
