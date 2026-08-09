@@ -13,6 +13,7 @@ export interface Session {
 
 const COLOR = { youtube: "#e62117", twitch: "#9146ff" } as const;
 const LABEL_W = 88; // チャンネル名カラムの幅(px)
+const RLABEL_W = 72; // 右端の名前カラムの幅(px・sm以上のみ表示)。sm:right-[72px] と一致必須
 
 // JSTの時刻ラベル。期間が長いほど日付主体にする。
 function jstLabel(t: number, hours: number): string {
@@ -82,7 +83,10 @@ export default function Timeline({
     <div>
       <div className="relative">
         {/* 目盛りの縦線（トラック領域のみ） */}
-        <div className="pointer-events-none absolute inset-y-0" style={{ left: LABEL_W, right: 0 }}>
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 sm:right-[72px]"
+          style={{ left: LABEL_W }}
+        >
           {ticks.map((t, i) => (
             <div
               key={i}
@@ -92,10 +96,14 @@ export default function Timeline({
           ))}
         </div>
 
-        {/* レーン */}
+        {/* レーン（縞模様＝行の追跡を助ける） */}
         <ul className="relative">
           {shown.map((l) => (
-            <li key={`${l.platform}-${l.name}`} className="flex items-center" style={{ height: 28 }}>
+            <li
+              key={`${l.platform}-${l.name}`}
+              className="flex items-center rounded odd:bg-slate-50/70 hover:bg-slate-100/70"
+              style={{ height: 28 }}
+            >
               <div className="flex shrink-0 items-center gap-1.5" style={{ width: LABEL_W }}>
                 <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: COLOR[l.platform] }} />
                 <span className="truncate text-xs text-slate-600" title={l.name}>
@@ -106,6 +114,8 @@ export default function Timeline({
                 {l.bars.map((b, i) => {
                   const leftPct = Math.max(0, ((b.start - winStart) / span) * 100);
                   const widthPct = ((b.end - b.start) / span) * 100;
+                  const endPct = leftPct + widthPct;
+                  const fitsInside = widthPct > 7; // 帯の中に数字が収まる幅か
                   const style: CSSProperties = {
                     left: `${leftPct}%`,
                     width: `${widthPct}%`,
@@ -116,18 +126,38 @@ export default function Timeline({
                     opacity: 0.4 + 0.5 * (b.peak / maxPeak),
                   };
                   return (
-                    <div
-                      key={i}
-                      className="absolute flex items-center justify-end overflow-hidden rounded"
-                      style={style}
-                      title={`${l.name}｜${jstLabel(b.start, 24)}〜${jstLabel(b.end, 24)}｜ピーク${b.peak}人`}
-                    >
-                      {widthPct > 7 && (
-                        <span className="px-1 text-[9px] font-bold tabular-nums text-white">{b.peak}</span>
+                    <div key={i}>
+                      <div
+                        className="absolute flex items-center justify-end overflow-hidden rounded"
+                        style={style}
+                        title={`${l.name}｜${jstLabel(b.start, 24)}〜${jstLabel(b.end, 24)}｜ピーク${b.peak}人`}
+                      >
+                        {fitsInside && (
+                          <span className="px-1 text-[9px] font-bold tabular-nums text-white">{b.peak}</span>
+                        )}
+                      </div>
+                      {/* 幅が足りない帯はピーク人数を帯の外側に出す（常に全帯で表示） */}
+                      {!fitsInside && (
+                        <span
+                          className="pointer-events-none absolute flex items-center text-[9px] font-bold tabular-nums text-slate-500"
+                          style={
+                            endPct > 91
+                              ? { right: `${Math.max(0, 100 - leftPct)}%`, paddingRight: 3, top: 7, height: 14 }
+                              : { left: `${endPct}%`, paddingLeft: 3, top: 7, height: 14 }
+                          }
+                        >
+                          {b.peak}
+                        </span>
                       )}
                     </div>
                   );
                 })}
+              </div>
+              {/* 右端にも名前を出す（グラフ右側で行を見失わないため・sm以上） */}
+              <div className="hidden shrink-0 items-center justify-end sm:flex" style={{ width: RLABEL_W }}>
+                <span className="truncate pl-1 text-right text-[10px] text-slate-400" title={l.name}>
+                  {l.name}
+                </span>
               </div>
             </li>
           ))}
@@ -135,7 +165,7 @@ export default function Timeline({
 
         {/* 時刻の目盛りラベル */}
         <div className="relative mt-1 h-4">
-          <div className="absolute inset-x-0" style={{ left: LABEL_W }}>
+          <div className="absolute right-0 sm:right-[72px]" style={{ left: LABEL_W }}>
             {ticks.map((t, i) => (
               <span
                 key={i}
@@ -151,7 +181,7 @@ export default function Timeline({
 
       <p className="mt-2 text-xs text-slate-400">
         {hidden > 0 ? `ピーク上位${maxLanes}chを表示（ほか${hidden}ch）。` : ""}
-        帯＝配信していた時間、濃さ＝ピーク視聴者数。
+        帯＝配信していた時間、濃さ・数字＝ピーク視聴者数。
       </p>
     </div>
   );

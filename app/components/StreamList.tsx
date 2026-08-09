@@ -83,6 +83,7 @@ function Badges({ s, capturedAt }: { s: StreamSnapshot; capturedAt: string | nul
       )}
       {trend && (
         <span
+          title="約20分前と比べた同時視聴者数の増減（±3人以上かつ±5%以上で表示）"
           className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${trend.cls}`}
         >
           {trend.icon} {trend.label}

@@ -46,6 +46,13 @@ interface HeatRow {
   hour: number;
   avg_concurrent: number;
 }
+interface HourProfileRow {
+  channel_id: string;
+  channel_name: string;
+  platform: string;
+  hour: number;
+  hours_count: number;
+}
 interface NewChannel {
   channel_id: string;
   channel_name: string;
@@ -76,6 +83,7 @@ interface InsightsData {
   headline: Headline | null;
   activity: ActivityRow[];
   heatmap: HeatRow[];
+  hour_profile: HourProfileRow[];
   new_channels: NewChannel[];
   leaderboard: LeaderRow[];
   growth: Growth[];
@@ -120,6 +128,10 @@ function dt(iso: string | null): string {
 }
 function pfDot(platform: string): string {
   return platform === "twitch" ? "bg-twitch" : "bg-youtube";
+}
+// 時間帯マップのセル色（PF色の濃淡で表す）
+function pfRgb(platform: string): string {
+  return platform === "twitch" ? "145,70,255" : "230,33,23";
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -216,6 +228,40 @@ export default function AnalyticsPage() {
     const endHour = (bestStart + 3) % 24;
     const endLabel = bestStart + 3 <= 24 ? bestStart + 3 : bestStart + 3 - 24; // 21〜24時 のように読ませる
     return { start: bestStart, endHour, endLabel, dayType, byHour, hourMax };
+  }, [d]);
+
+  // 配信者ごとの時間帯プロファイル（JSTの時×配信時間h）。よく配信する連続3時間帯も導く。
+  const channelHours = useMemo(() => {
+    const byCh = new Map<
+      string,
+      { id: string; name: string; platform: string; hours: number[]; total: number }
+    >();
+    for (const r of d?.hour_profile ?? []) {
+      const key = `${r.platform}:${r.channel_id}`;
+      const c =
+        byCh.get(key) ??
+        { id: key, name: r.channel_name, platform: r.platform, hours: new Array(24).fill(0), total: 0 };
+      c.hours[r.hour] += r.hours_count;
+      c.total += r.hours_count;
+      byCh.set(key, c);
+    }
+    return [...byCh.values()]
+      .sort((a, b) => b.total - a.total)
+      .map((c) => {
+        const max = Math.max(...c.hours, 1);
+        // もっとも配信が多い連続3時間帯（日またぎも考慮）
+        let bestStart = 0;
+        let bestSum = -1;
+        for (let h = 0; h < 24; h++) {
+          const sum = c.hours[h] + c.hours[(h + 1) % 24] + c.hours[(h + 2) % 24];
+          if (sum > bestSum) {
+            bestSum = sum;
+            bestStart = h;
+          }
+        }
+        const endLabel = bestStart + 3 <= 24 ? bestStart + 3 : bestStart + 3 - 24; // 21〜24時 のように読ませる
+        return { ...c, max, bestStart, endLabel };
+      });
   }, [d]);
 
   return (
@@ -496,6 +542,72 @@ export default function AnalyticsPage() {
                       <span>18</span>
                       <span>23時</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 配信者の時間帯マップ（誰がどの時間帯に配信していることが多いか） */}
+          {channelHours.length > 0 && (
+            <section className="mt-6">
+              <h2 className="mb-1 text-sm font-black text-slate-700">配信者の時間帯マップ</h2>
+              <p className="mb-2 text-[11px] text-slate-400">
+                よく配信している上位chが、どの時間帯（日本時間）に配信していることが多いか。濃いほどその時間の配信時間が長め。右は特に多い連続3時間帯。
+              </p>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                <div className="min-w-[560px]">
+                  {/* 時間軸ヘッダ */}
+                  <div className="mb-1 flex items-center">
+                    <div className="w-24 shrink-0" />
+                    <div className="flex flex-1">
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <div key={h} className="flex-1 text-center text-[9px] text-slate-400">
+                          {h % 3 === 0 ? h : ""}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="w-16 shrink-0" />
+                  </div>
+                  {channelHours.map((c) => (
+                    <div key={c.id} className="flex items-center py-[2px]">
+                      <div className="flex w-24 shrink-0 items-center gap-1 pr-1">
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
+                        <span className="truncate text-[11px] text-slate-600" title={c.name}>
+                          {c.name}
+                        </span>
+                      </div>
+                      <div className="flex flex-1">
+                        {c.hours.map((v, h) => (
+                          <div key={h} className="flex-1 px-[1px]">
+                            <div
+                              className="h-4 rounded-[3px]"
+                              title={`${c.name} ${h}時台: 配信${v}h`}
+                              style={{
+                                background:
+                                  v === 0
+                                    ? "#f1f5f9"
+                                    : `rgba(${pfRgb(c.platform)},${0.15 + (v / c.max) * 0.85})`,
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div
+                        className="w-16 shrink-0 pl-1.5 text-right text-[10px] tabular-nums text-slate-400"
+                        title="期間内でもっとも配信が多い連続3時間帯"
+                      >
+                        {c.bestStart}〜{c.endLabel}時
+                      </div>
+                    </div>
+                  ))}
+                  <div className="mt-2 flex items-center justify-end gap-3 text-[10px] text-slate-400">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-youtube" /> YouTube
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-twitch" /> Twitch
+                    </span>
                   </div>
                 </div>
               </div>

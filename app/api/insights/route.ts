@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const supabase = createPublicClient();
 
-  const [headline, activity, heatmap, newCh, leaderboard, growth, topStreams] =
+  const [headline, activity, heatmap, newCh, leaderboard, growth, topStreams, hourProfile] =
     await Promise.all([
       supabase.rpc("analytics_headline", { p_days: days, p_platform: platform }),
       supabase.rpc("daily_activity", { p_days: days, p_platform: platform }),
@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       supabase.rpc("channel_leaderboard", { p_days: days, p_limit: 20, p_platform: platform }),
       supabase.rpc("channel_growth", { p_days: days, p_limit: 20 }),
       supabase.rpc("top_streams", { p_days: days, p_limit: 6, p_platform: platform }),
+      supabase.rpc("channel_hour_profile", { p_days: days, p_limit: 10, p_platform: platform }),
     ]);
 
   const firstError =
@@ -31,7 +32,8 @@ export async function GET(request: Request) {
     newCh.error ||
     leaderboard.error ||
     growth.error ||
-    topStreams.error;
+    topStreams.error ||
+    hourProfile.error;
   if (firstError) {
     // エンリッチ系テーブル未作成でも、他パネルは返せるよう握りつぶさず明示する。
     console.error("[insights] rpc error:", firstError.message);
@@ -47,6 +49,7 @@ export async function GET(request: Request) {
     leaderboard: leaderboard.data ?? [],
     growth: growth.data ?? [],
     top_streams: topStreams.data ?? [],
+    hour_profile: hourProfile.data ?? [],
     error: firstError?.message ?? null,
   });
 }

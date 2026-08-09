@@ -161,6 +161,7 @@ export default function Home() {
             <span className="text-xs text-slate-500">いま配信中</span>
             {delta !== null && (
               <span
+                title="本日1つ前の収集時点（Twitchは約2分前・YouTubeは時間帯により6〜30分前）の総視聴者数との差"
                 className={`ml-auto text-xs font-bold tabular-nums ${
                   delta > 0 ? "text-emerald-600" : delta < 0 ? "text-amber-600" : "text-slate-400"
                 }`}
