@@ -45,8 +45,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
       <body className="font-body antialiased min-h-screen bg-slate-50 text-slate-900">
+        {/* ダークテーマ初期化：描画前に html.dark を付けてライト→ダークのチラつきを防ぐ。
+            設定は端末ごと（localStorage）。実際の色は globals.css のダークテーマ層を参照。 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('fl-theme')==='dark'){document.documentElement.classList.add('dark');var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content','#0d1410')}}catch(e){}`,
+          }}
+        />
         {children}
         <ServiceWorkerRegistrar />
         <AnalyticsTracker />

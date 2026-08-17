@@ -519,7 +519,7 @@ export default function AnalyticsPage() {
                             title={`${DOW_LABEL[dow]} ${h}時: 平均${v}配信`}
                             style={{
                               background:
-                                intensity === 0 ? "#f1f5f9" : `rgba(22,163,74,${0.12 + intensity * 0.88})`,
+                                intensity === 0 ? "var(--heat-empty, #f1f5f9)" : `rgba(22,163,74,${0.12 + intensity * 0.88})`,
                             }}
                           />
                         </div>

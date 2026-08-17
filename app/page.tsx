@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import StreamList from "./components/StreamList";
+import ThemeToggle from "./components/ThemeToggle";
 import type { StreamSnapshot } from "@/lib/types";
 import { GAMES, type GameId } from "@/lib/games";
 
@@ -138,6 +139,7 @@ export default function Home() {
                 ⚙️ 管理ページ
               </Link>
             )}
+            <ThemeToggle />
           </div>
         </div>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">

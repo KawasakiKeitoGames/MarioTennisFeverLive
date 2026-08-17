@@ -38,3 +38,97 @@ html, body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* =========================================================================
+   ダークテーマ層（SENSEKI FEVER と同じ「案A グリーンティント・ダーク」）
+   - <html class="dark"> のときだけ有効（ヘッダーの ThemeToggle / 既定はライト）
+   - コンポーネントの Tailwind クラスは書き換えず、使用中の色ユーティリティを
+     .dark 配下で上書きする方式（新しい色クラスを使ったらここにも追記する）
+   ========================================================================= */
+
+.dark {
+  color-scheme: dark; /* select 等のネイティブUIもダークにする */
+  --heat-empty: #1f2d23; /* 時間帯ヒートマップの空セル（ライトは #f1f5f9） */
+}
+.dark body {
+  background: #0d1410; /* ページ背景 */
+  color: #e8f2ea;      /* 基本文字 */
+}
+
+/* ---- 背景 ---- */
+.dark .bg-white { background-color: #17231b; }   /* カード面 */
+.dark .bg-slate-50 { background-color: #0d1410; }
+.dark .bg-slate-100 { background-color: #1f2d23; }
+.dark .bg-slate-200 { background-color: #283b2f; }
+.dark .bg-slate-50\/70 { background-color: rgba(13, 20, 16, .7); }
+.dark .bg-slate-100\/70 { background-color: rgba(31, 45, 35, .7); }
+.dark .bg-red-50 { background-color: #2b1717; }
+.dark .bg-amber-50 { background-color: #2b2213; }
+.dark .bg-amber-100 { background-color: #382c15; }
+.dark .bg-emerald-50 { background-color: #132a1f; }
+.dark .bg-sky-50 { background-color: #12283a; }
+.dark .bg-rose-50 { background-color: #2e161b; }
+.dark .bg-orange-50 { background-color: #2f2012; }
+.dark .bg-orange-100 { background-color: #382413; }
+/* bg-youtube / bg-twitch / bg-brand系 / bg-red-400/500 / bg-emerald-500 / bg-sky-500 /
+   bg-rose-500 は彩度が高くダークでも映えるためそのまま */
+
+/* ---- 文字 ---- */
+.dark .text-slate-900 { color: #f2faf4; }
+.dark .text-slate-700 { color: #d2e0d6; }
+.dark .text-slate-600 { color: #b3c6b9; }
+.dark .text-slate-500 { color: #93a99b; }
+.dark .text-slate-400 { color: #7a9083; }
+.dark .text-slate-300 { color: #5f7568; }
+.dark .text-red-500 { color: #f87171; }
+.dark .text-red-600 { color: #f87171; }
+.dark .text-amber-600 { color: #fbbf24; }
+.dark .text-amber-700 { color: #fcd34d; }
+.dark .text-emerald-600 { color: #34d399; }
+.dark .text-emerald-700 { color: #6ee7b7; }
+.dark .text-sky-700 { color: #7dd3fc; }
+.dark .text-rose-700 { color: #fda4af; }
+.dark .text-orange-600 { color: #fb923c; }
+/* ブランド/プラットフォーム色はダーク背景では明るい変種に寄せる */
+.dark .text-brand { color: #4ade80; }
+.dark .text-youtube { color: #ff5347; }
+.dark .text-twitch { color: #a970ff; }
+
+/* ---- 枠線 ---- */
+.dark .border-slate-50 { border-color: #1a2a20; }
+.dark .border-slate-100 { border-color: #1e2f24; }
+.dark .border-slate-200 { border-color: #27392d; }
+.dark .border-slate-300 { border-color: #33493b; }
+.dark .border-red-200 { border-color: #4c2323; }
+.dark .border-amber-200 { border-color: #4a3a1a; }
+.dark .border-amber-300 { border-color: #5e4a20; }
+.dark .border-emerald-200 { border-color: #1e523c; }
+.dark .border-sky-200 { border-color: #1d3f5c; }
+.dark .border-rose-200 { border-color: #542430; }
+.dark .border-orange-200 { border-color: #4c3418; }
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #1e2f24; }
+
+/* ---- hover / focus / odd バリアント ---- */
+.dark .hover\:bg-slate-50:hover { background-color: #1f2d23; }
+.dark .focus-visible\:bg-slate-50:focus-visible { background-color: #1f2d23; }
+.dark .hover\:bg-slate-100\/70:hover { background-color: rgba(36, 52, 40, .7); }
+.dark .hover\:bg-red-50:hover { background-color: #351c1c; }
+.dark .hover\:text-slate-700:hover { color: #d2e0d6; }
+.dark .odd\:bg-slate-50\/70:nth-child(odd) { background-color: rgba(13, 20, 16, .55); }
+
+/* ---- フォーム ---- */
+.dark input::placeholder,
+.dark textarea::placeholder { color: #5f7568; }
+
+/* ---- Recharts（チャート色はコンポーネント側のhex指定のため、ここで最低限を補正） ---- */
+.dark .recharts-cartesian-grid line { stroke: #27392d !important; }
+.dark .recharts-cartesian-axis-line,
+.dark .recharts-cartesian-axis-tick-line { stroke: #33493b !important; }
+.dark .recharts-text { fill: #93a99b !important; }
+.dark .recharts-default-tooltip {
+  background-color: #17231b !important;
+  border-color: #27392d !important;
+}
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip .recharts-tooltip-label { color: #d2e0d6 !important; }
+.dark .recharts-legend-item-text { color: #b3c6b9 !important; }
+.dark .recharts-reference-line line { stroke: #4c6858 !important; }
