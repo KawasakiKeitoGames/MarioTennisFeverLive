@@ -95,18 +95,25 @@ export default function HistoryPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <Link href="/" className="text-xs font-bold text-brand hover:underline">
-        ← ライブボードに戻る
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+        >
+          🏠 ライブボードに戻る
+        </Link>
+        <Link
+          href="/analytics"
+          className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+        >
+          📊 ランキング・記録 →
+        </Link>
+      </div>
       <h1 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
         視聴者数の<span className="text-brand">推移</span>
       </h1>
       <p className="mt-2 text-sm text-slate-500">
         上：総同時視聴者数のうごき／下：どのチャンネルがいつ配信していたか。
-        ランキングや配信記録は{" "}
-        <Link href="/analytics" className="font-bold text-brand hover:underline">
-          配信ランキング・記録 →
-        </Link>
       </p>
 
       {/* コントロール */}

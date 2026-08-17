@@ -269,18 +269,25 @@ export default function AnalyticsPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <Link href="/" className="text-xs font-bold text-brand hover:underline">
-        ← ライブボードに戻る
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+        >
+          🏠 ライブボードに戻る
+        </Link>
+        <Link
+          href="/history"
+          className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+        >
+          📈 推移 →
+        </Link>
+      </div>
       <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
         配信<span className="text-brand">ランキング</span>・記録
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-500">
         誰が・どの配信が・いつ盛り上がっているか。収集済みデータだけから集計しています（閲覧時に外部APIは呼びません）。
-        時系列の細かい動きは{" "}
-        <Link href="/history" className="font-bold text-brand hover:underline">
-          視聴者数の推移 →
-        </Link>
       </p>
 
       {/* コントロール */}
