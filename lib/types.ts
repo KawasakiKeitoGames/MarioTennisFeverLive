@@ -1,3 +1,5 @@
+import type { GameId } from "./games";
+
 export type Platform = "youtube" | "twitch";
 
 export type ViewerTrend = "up" | "flat" | "down";
@@ -6,6 +8,7 @@ export interface StreamSnapshot {
   id?: number;
   captured_at: string;
   platform: Platform;
+  game: GameId;
   channel_id: string;
   channel_name: string | null;
   stream_id: string | null;
@@ -22,6 +25,7 @@ export interface StreamSnapshot {
 /** 取得処理が返す、DBに入れる前の1配信ぶんのデータ */
 export interface LiveStream {
   platform: Platform;
+  game: GameId;
   channelId: string;
   channelName: string;
   streamId: string;

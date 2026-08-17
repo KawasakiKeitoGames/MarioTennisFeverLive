@@ -34,6 +34,7 @@ async function saveCapture(
     const rows: StreamSnapshot[] = streams.map((s) => ({
       captured_at: capturedAt,
       platform: s.platform,
+      game: s.game,
       channel_id: s.channelId,
       channel_name: s.channelName,
       stream_id: s.streamId,

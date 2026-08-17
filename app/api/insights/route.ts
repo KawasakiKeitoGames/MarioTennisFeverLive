@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicClient } from "@/lib/supabase";
+import { isGameId } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
 
@@ -10,19 +11,32 @@ export async function GET(request: Request) {
   const days = Math.min(parseInt(searchParams.get("days") ?? "30", 10) || 30, 90);
   const pRaw = searchParams.get("platform");
   const platform = pRaw === "youtube" || pRaw === "twitch" ? pRaw : null; // null=両PF合算
+  const gRaw = searchParams.get("game");
+  const game = isGameId(gRaw) ? gRaw : null; // null=全タイトル
 
   const supabase = createPublicClient();
 
   const [headline, activity, heatmap, newCh, leaderboard, growth, topStreams, hourProfile] =
     await Promise.all([
-      supabase.rpc("analytics_headline", { p_days: days, p_platform: platform }),
-      supabase.rpc("daily_activity", { p_days: days, p_platform: platform }),
-      supabase.rpc("hour_heatmap", { p_days: days, p_platform: platform }),
-      supabase.rpc("new_channels", { p_days: Math.min(days, 30), p_limit: 30 }),
-      supabase.rpc("channel_leaderboard", { p_days: days, p_limit: 20, p_platform: platform }),
+      supabase.rpc("analytics_headline", { p_days: days, p_platform: platform, p_game: game }),
+      supabase.rpc("daily_activity", { p_days: days, p_platform: platform, p_game: game }),
+      supabase.rpc("hour_heatmap", { p_days: days, p_platform: platform, p_game: game }),
+      supabase.rpc("new_channels", { p_days: Math.min(days, 30), p_limit: 30, p_game: game }),
+      supabase.rpc("channel_leaderboard", {
+        p_days: days,
+        p_limit: 20,
+        p_platform: platform,
+        p_game: game,
+      }),
+      // channel_growth は登録者数（チャンネル単位のエンリッチ情報）なのでタイトル絞り込み対象外
       supabase.rpc("channel_growth", { p_days: days, p_limit: 20 }),
-      supabase.rpc("top_streams", { p_days: days, p_limit: 6, p_platform: platform }),
-      supabase.rpc("channel_hour_profile", { p_days: days, p_limit: 10, p_platform: platform }),
+      supabase.rpc("top_streams", { p_days: days, p_limit: 6, p_platform: platform, p_game: game }),
+      supabase.rpc("channel_hour_profile", {
+        p_days: days,
+        p_limit: 10,
+        p_platform: platform,
+        p_game: game,
+      }),
     ]);
 
   const firstError =
@@ -42,6 +56,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     days,
     platform,
+    game,
     headline: headline.data?.[0] ?? null,
     activity: activity.data ?? [],
     heatmap: heatmap.data ?? [],

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicClient } from "@/lib/supabase";
+import { isGameId } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
   const hours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
   const pf = searchParams.get("platform");
   const platform = pf === "youtube" || pf === "twitch" ? pf : null; // null=合算
+  const gRaw = searchParams.get("game");
+  const game = isGameId(gRaw) ? gRaw : null;
   const bucketMin = bucketMinutesFor(hours);
 
   const supabase = createPublicClient();
@@ -25,6 +28,7 @@ export async function GET(request: Request) {
     p_hours: hours,
     p_bucket_min: bucketMin,
     p_platform: platform,
+    p_game: game,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -32,5 +36,5 @@ export async function GET(request: Request) {
     t: new Date(r.t).getTime(),
     total: r.total,
   }));
-  return NextResponse.json({ hours, platform, bucket_min: bucketMin, now: Date.now(), points });
+  return NextResponse.json({ hours, platform, game, bucket_min: bucketMin, now: Date.now(), points });
 }

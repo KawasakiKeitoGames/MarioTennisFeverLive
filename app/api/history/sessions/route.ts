@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicClient } from "@/lib/supabase";
+import { isGameId } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
 
@@ -7,9 +8,11 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const hours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
+  const gRaw = searchParams.get("game");
+  const game = isGameId(gRaw) ? gRaw : null;
 
   const supabase = createPublicClient();
-  const { data, error } = await supabase.rpc("stream_sessions", { p_hours: hours });
+  const { data, error } = await supabase.rpc("stream_sessions", { p_hours: hours, p_game: game });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const sessions = (

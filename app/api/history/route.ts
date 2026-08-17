@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPublicClient } from "@/lib/supabase";
+import { isGameId } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const hours = Math.min(parseInt(searchParams.get("hours") ?? "24", 10) || 24, 24 * 30);
   const platform = searchParams.get("platform") === "twitch" ? "twitch" : "youtube";
+  const gRaw = searchParams.get("game");
+  const game = isGameId(gRaw) ? gRaw : null;
   const bucketMin = bucketMinutesFor(hours);
 
   const supabase = createPublicClient();
@@ -28,6 +31,7 @@ export async function GET(request: Request) {
     p_hours: hours,
     p_bucket_min: bucketMin,
     p_top: 12,
+    p_game: game,
   });
 
   if (error) {
@@ -37,6 +41,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     hours,
     platform,
+    game,
     bucket_min: bucketMin,
     // クライアントが「今から直近N時間」の固定軸を描けるよう、サーバ時刻の窓を返す。
     now: Date.now(),

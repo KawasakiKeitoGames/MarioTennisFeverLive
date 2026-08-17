@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import StreamList from "./components/StreamList";
 import type { StreamSnapshot } from "@/lib/types";
+import { GAMES, type GameId } from "@/lib/games";
 
 type SortKey = "viewers" | "name" | "elapsed";
 const SORT_LABELS: Record<SortKey, string> = {
@@ -44,6 +45,7 @@ export default function Home() {
   const [peakViewers, setPeakViewers] = useState<number | null>(null);
   const [peakAt, setPeakAt] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("viewers");
+  const [game, setGame] = useState<"all" | GameId>("all"); // タイトル切り替え（既定=全タイトル）
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -51,7 +53,8 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/streams", { cache: "no-store" });
+      const gq = game === "all" ? "" : `?game=${game}`;
+      const res = await fetch(`/api/streams${gq}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`取得に失敗しました (${res.status})`);
       const data = await res.json();
       setYoutube(data.youtube ?? []);
@@ -68,7 +71,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [game]);
 
   useEffect(() => {
     load();
@@ -138,20 +141,53 @@ export default function Home() {
           </div>
         </div>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
-          マリオテニスフィーバー配信中ボード
+          マリオテニス配信中ボード
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-500">
-          YouTube と Twitch を横断して、いま配信中のマリオテニスフィーバーを集計。
+          YouTube と Twitch を横断して、いま配信中のマリオテニス シリーズ（
+          {GAMES.map((g) => g.label).join("・")}）を集計。
         </p>
         <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-400">
           <li>
-            <span className="font-bold text-youtube">YouTube</span>：タイトルに「マリオテニスフィーバー」を含むライブ配信（「マリオテニス フィーバー」のように語間に空白があるものや、英語表記「Mario Tennis Fever」も対象）
+            <span className="font-bold text-youtube">YouTube</span>：タイトルに各ゲーム名（
+            {GAMES.map((g) => `「${g.fullName}」`).join("")}
+            ）を含むライブ配信（語間の空白や英語表記も対象）
           </li>
           <li>
-            <span className="font-bold text-twitch">Twitch</span>：配信カテゴリ（ゲーム）が「Mario Tennis Fever」のライブ配信
+            <span className="font-bold text-twitch">Twitch</span>：配信カテゴリ（ゲーム）が
+            {GAMES.map((g) => `「${g.twitchCategory}」`).join("")}
+            のライブ配信
           </li>
         </ul>
       </header>
+
+      {/* タイトル切り替えタブ */}
+      <div className="mb-4 flex flex-wrap items-center gap-1">
+        <button
+          onClick={() => setGame("all")}
+          className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+            game === "all"
+              ? "border-brand bg-brand/10 text-brand"
+              : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          すべて
+        </button>
+        {GAMES.map((g) => (
+          <button
+            key={g.id}
+            onClick={() => setGame(g.id)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+              game === g.id
+                ? g.badgeClass
+                : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${g.dotClass}`} />
+            {g.label}
+          </button>
+        ))}
+      </div>
 
       {/* スコアボード */}
       <div className="mb-5 space-y-2.5">
@@ -260,6 +296,7 @@ export default function Home() {
           streams={[...youtube, ...twitch]}
           sortKey={sortKey}
           capturedAt={capturedAt}
+          showGameBadge={game === "all"}
         />
       )}
 
@@ -287,7 +324,7 @@ export default function Home() {
           <p className="mt-2 text-slate-400">視聴者数は取得時点の同時視聴者数です。</p>
         </div>
         <p className="text-xs leading-relaxed text-slate-500">
-          本サイトは非公式のファン制作サイトです。任天堂株式会社および「マリオテニスフィーバー」の公式、YouTube・Twitch とは一切関係ありません。
+          本サイトは非公式のファン制作サイトです。任天堂株式会社および「マリオテニス」シリーズ各作品の公式、YouTube・Twitch とは一切関係ありません。
           各名称・商標は各権利者に帰属します。
         </p>
       </footer>

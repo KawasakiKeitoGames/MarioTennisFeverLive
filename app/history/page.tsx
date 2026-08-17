@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import Timeline, { type Session } from "./Timeline";
+import { GAMES, type GameId } from "@/lib/games";
 
 type Platform = "all" | "youtube" | "twitch";
 interface TotalPoint {
@@ -59,6 +60,7 @@ function jstFull(t: number): string {
 export default function HistoryPage() {
   const [hours, setHours] = useState(24);
   const [platform, setPlatform] = useState<Platform>("all");
+  const [game, setGame] = useState<"all" | GameId>("all");
   const [points, setPoints] = useState<TotalPoint[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [now, setNow] = useState<number>(Date.now());
@@ -67,9 +69,10 @@ export default function HistoryPage() {
   useEffect(() => {
     setLoading(true);
     const pfq = platform === "all" ? "" : `&platform=${platform}`;
+    const gq = game === "all" ? "" : `&game=${game}`;
     Promise.all([
-      fetch(`/api/history/total?hours=${hours}${pfq}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/history/sessions?hours=${hours}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/history/total?hours=${hours}${pfq}${gq}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/history/sessions?hours=${hours}${gq}`, { cache: "no-store" }).then((r) => r.json()),
     ])
       .then(([tot, ses]) => {
         setPoints(tot.points ?? []);
@@ -77,7 +80,7 @@ export default function HistoryPage() {
         setSessions(ses.sessions ?? []);
       })
       .finally(() => setLoading(false));
-  }, [hours, platform]);
+  }, [hours, platform, game]);
 
   const winStart = now - hours * 3600e3;
   const winEnd = now;
@@ -108,6 +111,33 @@ export default function HistoryPage() {
 
       {/* コントロール */}
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="mr-1 text-xs text-slate-400">タイトル</span>
+          <button
+            onClick={() => setGame("all")}
+            className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+              game === "all"
+                ? "border-brand bg-brand/10 text-brand"
+                : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            すべて
+          </button>
+          {GAMES.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setGame(g.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+                game === g.id
+                  ? g.badgeClass
+                  : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${g.dotClass}`} />
+              {g.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-1">
           <span className="mr-1 text-xs text-slate-400">対象</span>
           {PLATFORMS.map((p) => (

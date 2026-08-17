@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 import { createPublicClient } from "@/lib/supabase";
+import { isGameId } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
 
 // 現在配信中の一覧を返す（current_streams ビューから）。
+// ?game=fever|aces|mt64 でタイトル絞り込み（未指定=全タイトル）。
 // ユーザーのアクセスでは外部APIを一切叩かず、Supabaseのキャッシュ済みデータのみ返す。
-export async function GET() {
+export async function GET(request: Request) {
+  const gRaw = new URL(request.url).searchParams.get("game");
+  const game = isGameId(gRaw) ? gRaw : null;
+
   const supabase = createPublicClient();
-  const { data, error } = await supabase
-    .from("current_streams")
-    .select("*");
+  let query = supabase.from("current_streams").select("*");
+  if (game) query = query.eq("game", game);
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -31,7 +36,9 @@ export async function GET() {
   );
 
   // 本日ピーク・前回比（▲▼）用の集計。1行返るだけなので egress は極小。
-  const { data: stats, error: statsErr } = await supabase.rpc("today_viewer_stats");
+  const { data: stats, error: statsErr } = await supabase.rpc("today_viewer_stats", {
+    p_game: game,
+  });
   if (statsErr) console.error("[streams] today_viewer_stats失敗:", statsErr.message);
   const st = Array.isArray(stats) ? stats[0] : stats;
 

@@ -8,6 +8,7 @@ create table if not exists public.stream_snapshots (
   id           bigint generated always as identity primary key,
   captured_at  timestamptz not null default now(),
   platform     text        not null check (platform in ('youtube','twitch')),
+  game         text        not null default 'fever',  -- ゲームタイトル（lib/games.ts の GameId）
   channel_id   text        not null,          -- YouTube: channelId / Twitch: user_login
   channel_name text,
   stream_id    text,                          -- YouTube: videoId / Twitch: stream idの代わりにuser_login
@@ -20,6 +21,7 @@ create table if not exists public.stream_snapshots (
 create index if not exists idx_snap_captured  on public.stream_snapshots (captured_at desc);
 create index if not exists idx_snap_platform  on public.stream_snapshots (platform);
 create index if not exists idx_snap_channel   on public.stream_snapshots (platform, channel_id, captured_at desc);
+create index if not exists idx_snap_game      on public.stream_snapshots (game, captured_at desc);
 
 -- 取得を実行した各時点を1行ずつ記録（配信0件の回も必ず1行入れる）。
 -- これにより「最新取得時点が0件」を表現でき、誰も配信していない時に

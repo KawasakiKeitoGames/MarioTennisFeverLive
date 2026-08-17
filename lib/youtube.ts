@@ -1,23 +1,17 @@
 import type { LiveStream } from "./types";
+import { classifyTitle } from "./games";
 
-// クォータ節約のため検索は日本語1本に集約（配信の大半が日本語タイトル）。
-// 英語タイトル単独の配信は取りこぼす可能性があるが、消費を約半分に抑える。
-const YT_QUERIES = ["マリオテニスフィーバー"];
+// クォータ節約のため検索は「マリオテニス」1本に集約。YouTube検索は曖昧一致で
+// フィーバー/エース/64 いずれのライブ配信もこの1クエリで拾えるため、
+// 対応タイトルを増やしても search の消費は従来と同じ（1回100ユニット）で済む。
+// どのタイトルの配信かは、下の classifyTitle でタイトル文字列から判別する。
+const YT_QUERIES = ["マリオテニス"];
 const BASE = "https://www.googleapis.com/youtube/v3";
 
 // YouTube検索はキーワードが緩く、無関係な配信も拾う（例: 別ゲーム配信や、
 // 概要欄にゲーム名を列挙しているだけの雑談配信）。実際にプレイ中の配信は
-// タイトルにゲーム名を入れているため、タイトルにキーワードを含むものだけ残す。
-// タイトルの空白（半角/全角　）を無視して突き合わせる。「マリオテニス フィーバー」
-// のように語間に空白を挟むタイトルを取りこぼさないため。検索は既に緩く拾っているので、
-// この後フィルタを空白許容にするだけでよく、検索クォータの追加消費はない。
-const YT_KEYWORDS = ["マリオテニスフィーバー", "mario tennis fever"];
-const normalize = (s: string): string => s.toLowerCase().replace(/[\s　]+/g, "");
-const NORMALIZED_KEYWORDS = YT_KEYWORDS.map(normalize);
-function matchesGame(title: string): boolean {
-  const hay = normalize(title);
-  return NORMALIZED_KEYWORDS.some((k) => hay.includes(k));
-}
+// タイトルにゲーム名を入れているため、いずれかの対応タイトルのキーワードに
+// 一致するものだけ残す（判別ロジックは lib/games.ts に集約）。
 
 interface SearchItem {
   id?: { videoId?: string };
@@ -87,10 +81,12 @@ export async function fetchYouTubeLive(apiKey: string): Promise<LiveStream[]> {
       if (cv == null) continue; // 実際に配信中のものだけ
       const meta = found.get(it.id);
       const title = it.snippet?.title ?? meta?.title ?? "";
-      // タイトルにキーワードを含まない配信は除外（別ゲーム等の誤検出対策）
-      if (!matchesGame(title)) continue;
+      // どの対応タイトルのキーワードにも一致しない配信は除外（別ゲーム等の誤検出対策）
+      const game = classifyTitle(title);
+      if (!game) continue;
       out.push({
         platform: "youtube",
+        game,
         channelId: it.snippet?.channelId ?? meta?.channelId ?? "",
         channelName: it.snippet?.channelTitle ?? meta?.channel ?? "",
         streamId: it.id,

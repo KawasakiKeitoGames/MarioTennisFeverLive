@@ -1,6 +1,7 @@
 "use client";
 
 import type { StreamSnapshot, Platform } from "@/lib/types";
+import { GAME_BY_ID } from "@/lib/games";
 import { trackClick } from "@/lib/track";
 
 type SortKey = "viewers" | "name" | "elapsed";
@@ -97,10 +98,13 @@ export default function StreamList({
   streams,
   sortKey,
   capturedAt,
+  showGameBadge = false,
 }: {
   streams: StreamSnapshot[];
   sortKey: SortKey;
   capturedAt: string | null;
+  // 「すべて」表示のとき、どのタイトルの配信か一目で分かるようゲームバッジを出す
+  showGameBadge?: boolean;
 }) {
   const sorted = [...streams].sort((a, b) => {
     if (sortKey === "name") {
@@ -124,6 +128,7 @@ export default function StreamList({
           {sorted.map((s, i) => {
             const thumb = thumbUrl(s);
             const st = STYLES[s.platform];
+            const game = showGameBadge ? GAME_BY_ID.get(s.game) : undefined;
             return (
               <li key={`${s.platform}-${s.channel_id}-${i}`}>
                 <a
@@ -158,6 +163,15 @@ export default function StreamList({
                         <span className={`h-1 w-1 rounded-full ${st.dot}`} />
                         {st.label}
                       </span>
+                      {game && (
+                        <span
+                          title={game.fullName}
+                          className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold ${game.badgeClass}`}
+                        >
+                          <span className={`h-1 w-1 rounded-full ${game.dotClass}`} />
+                          {game.label}
+                        </span>
+                      )}
                       {s.language && (
                         <span className="shrink-0 rounded border border-slate-200 px-1 py-0.5 text-[9px] font-medium uppercase text-slate-400">
                           {s.language}

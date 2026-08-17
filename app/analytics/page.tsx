@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { GAMES, type GameId } from "@/lib/games";
 
 type PlatformSel = "all" | "youtube" | "twitch";
 
@@ -147,17 +148,19 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 export default function AnalyticsPage() {
   const [days, setDays] = useState(7);
   const [platform, setPlatform] = useState<PlatformSel>("all");
+  const [game, setGame] = useState<"all" | GameId>("all");
   const [d, setD] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     const pq = platform === "all" ? "" : `&platform=${platform}`;
-    fetch(`/api/insights?days=${days}${pq}`, { cache: "no-store" })
+    const gq = game === "all" ? "" : `&game=${game}`;
+    fetch(`/api/insights?days=${days}${pq}${gq}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((json) => setD(json))
       .finally(() => setLoading(false));
-  }, [days, platform]);
+  }, [days, platform, game]);
 
   const activityChart = useMemo(
     () =>
@@ -282,6 +285,33 @@ export default function AnalyticsPage() {
 
       {/* コントロール */}
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="mr-1 text-xs text-slate-400">タイトル</span>
+          <button
+            onClick={() => setGame("all")}
+            className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+              game === "all"
+                ? "border-brand bg-brand/10 text-brand"
+                : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            すべて
+          </button>
+          {GAMES.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setGame(g.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+                game === g.id
+                  ? g.badgeClass
+                  : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${g.dotClass}`} />
+              {g.label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-1">
           <span className="mr-1 text-xs text-slate-400">対象</span>
           {PLATFORMS.map((p) => (
