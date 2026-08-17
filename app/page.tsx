@@ -273,12 +273,18 @@ export default function Home() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/analytics" className="text-xs font-bold text-brand hover:underline">
-            ランキング・記録 →
+        <div className="flex items-center gap-2">
+          <Link
+            href="/analytics"
+            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+          >
+            📊 ランキング・記録 →
           </Link>
-          <Link href="/history" className="text-xs font-bold text-brand hover:underline">
-            推移 →
+          <Link
+            href="/history"
+            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+          >
+            📈 推移 →
           </Link>
         </div>
       </div>
