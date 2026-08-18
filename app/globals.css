@@ -75,6 +75,7 @@ html, body {
 
 /* ---- 文字 ---- */
 .dark .text-slate-900 { color: #f2faf4; }
+.dark .text-slate-800 { color: #e4efe7; }
 .dark .text-slate-700 { color: #d2e0d6; }
 .dark .text-slate-600 { color: #b3c6b9; }
 .dark .text-slate-500 { color: #93a99b; }

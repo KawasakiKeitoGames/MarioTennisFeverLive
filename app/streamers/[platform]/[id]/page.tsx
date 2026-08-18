@@ -46,10 +46,17 @@ interface DailyRow {
   subscriber_count: number | null;
   video_count: number | null;
 }
+interface RankRow {
+  rank: number | null;
+  total_channels: number | null;
+  prev_rank: number | null;
+  prev_total: number | null;
+}
 interface DetailData {
   stats: ChannelStats | null;
   grid: GridRow[];
   recent: RecentStream[];
+  rank: RankRow | null;
   channel: ChannelRow | null;
   daily: DailyRow | null;
 }
@@ -287,6 +294,58 @@ export default function StreamerDetailPage() {
                 </span>
               )}
             </div>
+
+            {/* 順位（延べ視聴順・期間セレクタに連動） */}
+            {d?.rank?.rank != null && (
+              <div
+                title={t("st.rankTitle")}
+                className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-brand/15 bg-brand/5 px-3 py-2 text-xs"
+              >
+                <span aria-hidden>🏆</span>
+                {lang === "en" ? (
+                  <span className="text-slate-600">
+                    Rank{" "}
+                    <span className="text-base font-black tabular-nums text-brand">
+                      #{d.rank.rank}
+                    </span>{" "}
+                    <span className="text-slate-400">
+                      of {fmt(d.rank.total_channels)} (last {days}d, by viewer-hours)
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-slate-600">
+                    配信者ランキング{" "}
+                    <span className="text-base font-black tabular-nums text-brand">
+                      {d.rank.rank}位
+                    </span>{" "}
+                    <span className="text-slate-400">
+                      / {fmt(d.rank.total_channels)}ch中（直近{days}日・延べ視聴順）
+                    </span>
+                  </span>
+                )}
+                {d.rank.prev_rank != null ? (
+                  (() => {
+                    const diff = (d.rank!.prev_rank as number) - (d.rank!.rank as number);
+                    const cls =
+                      diff > 0 ? "text-emerald-600" : diff < 0 ? "text-amber-600" : "text-slate-400";
+                    const label =
+                      diff > 0 ? `▲ +${diff}` : diff < 0 ? `▼ ${Math.abs(diff)}` : "→ ±0";
+                    return (
+                      <span className={`font-bold tabular-nums ${cls}`}>
+                        {label}
+                        <span className="ml-1 font-normal text-slate-400">
+                          {lang === "en"
+                            ? `vs prev. ${days}d (#${d.rank!.prev_rank})`
+                            : `前の${days}日比（${d.rank!.prev_rank}位）`}
+                        </span>
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <span className="text-slate-400">{t("st.rankNew")}</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 期間切替 */}

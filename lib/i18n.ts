@@ -48,6 +48,11 @@ const DICT = {
     ja: "このチャンネルのデータが見つかりませんでした。",
     en: "No data found for this channel.",
   },
+  "st.rankTitle": {
+    ja: "延べ視聴時間（同時視聴×時間）順の順位。全タイトル・YouTube/Twitch合算、比較は直前の同じ長さの期間。",
+    en: "Rank by viewer-hours (concurrent viewers × hours), all games and platforms combined. Change vs the preceding period of the same length.",
+  },
+  "st.rankNew": { ja: "前期間データなし", en: "no data in prev. period" },
   "st.dataNote": {
     ja: "数値は本サイトが収集したスナップショットに基づく推定値です（収集間隔の粒度）。",
     en: "Figures are estimates based on snapshots collected by this site.",

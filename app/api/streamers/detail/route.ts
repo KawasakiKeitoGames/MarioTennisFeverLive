@@ -17,10 +17,12 @@ export async function GET(request: Request) {
 
   const supabase = createPublicClient();
 
-  const [stats, grid, recent, channelRow, latestDaily] = await Promise.all([
+  const [stats, grid, recent, rank, channelRow, latestDaily] = await Promise.all([
     supabase.rpc("channel_stats", { p_platform: platform, p_channel_id: id, p_days: days }),
     supabase.rpc("channel_time_grid", { p_platform: platform, p_channel_id: id, p_days: days }),
     supabase.rpc("channel_recent_streams", { p_platform: platform, p_channel_id: id, p_limit: 10 }),
+    // 延べ視聴順の順位（前の同じ長さの期間との比較つき）
+    supabase.rpc("channel_rank", { p_channel_id: id, p_days: days }),
     // エンリッチ済みの基本情報（無ければnull。thumbnail/開設日など）
     supabase.from("channels").select("*").eq("channel_id", id).maybeSingle(),
     // 最新の登録者数（YouTubeのみ値が入る）
@@ -45,6 +47,7 @@ export async function GET(request: Request) {
     stats: stats.data?.[0] ?? null,
     grid: grid.data ?? [],
     recent: recent.data ?? [],
+    rank: rank.data?.[0] ?? null,
     channel: channelRow.data ?? null,
     daily: latestDaily.data ?? null,
     error: firstError?.message ?? null,
