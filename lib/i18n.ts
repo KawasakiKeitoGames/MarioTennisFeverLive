@@ -41,6 +41,11 @@ const DICT = {
   "st.kpiHours": { ja: "配信時間", en: "Stream hours" },
   "st.kpiViewerHours": { ja: "延べ視聴", en: "Viewer-hours" },
   "st.kpiAvg": { ja: "平均同時視聴", en: "Avg viewers" },
+  "st.kpiAvgDuration": { ja: "平均配信時間", en: "Avg duration" },
+  "st.kpiRankNote": {
+    ja: "各カード下段は期間内に配信した全チャンネル中の順位です。平均配信時間は観測の最初〜最後の時刻から推定しています。",
+    en: "The bottom line of each card is the rank among all channels active in the period. Average duration is estimated from first–last observation times.",
+  },
   "st.hourTitle": { ja: "時間帯の傾向（日本時間）", en: "Hours of day (JST)" },
   "st.dowTitle": { ja: "曜日の傾向", en: "Days of week" },
   "st.recent": { ja: "直近の配信", en: "Recent streams" },

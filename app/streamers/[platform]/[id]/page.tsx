@@ -52,11 +52,21 @@ interface RankRow {
   prev_rank: number | null;
   prev_total: number | null;
 }
+interface KpiRanks {
+  total_channels: number;
+  stream_hours_rank: number;
+  viewer_hours_rank: number;
+  peak_rank: number;
+  avg_viewers_rank: number;
+  avg_session_hours: number;
+  avg_session_rank: number;
+}
 interface DetailData {
   stats: ChannelStats | null;
   grid: GridRow[];
   recent: RecentStream[];
   rank: RankRow | null;
+  kpi: KpiRanks | null;
   channel: ChannelRow | null;
   daily: DailyRow | null;
 }
@@ -109,6 +119,16 @@ function ymd(iso: string | null, lang: Lang): string {
 function pfRgb(platform: string): string {
   return platform === "twitch" ? "145,70,255" : "230,33,23";
 }
+// 観測スパンからの配信時間ラベル（"6h18m" / "42m"。1分未満は非表示=null）
+function durLabel(startIso: string, endIso: string): string | null {
+  const min = Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000);
+  if (min < 1) return null;
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h${m}m`;
+}
+
 // チャンネルページ（外部）URL
 function channelUrl(platform: string, channelId: string): string {
   return platform === "twitch"
@@ -366,17 +386,52 @@ export default function StreamerDetailPage() {
             ))}
           </div>
 
-          {/* KPI */}
-          <div className="mt-3 grid grid-cols-2 gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-4 sm:p-4">
-            <Stat label={t("st.kpiHours")} value={`${fmt(d?.stats?.stream_hours)}h`} />
-            <Stat label={t("st.kpiViewerHours")} value={fmt(d?.stats?.viewer_hours)} />
-            <Stat
-              label={t("an.kpiPeak")}
-              value={fmt(d?.stats?.peak_viewers)}
-              sub={d?.stats?.peak_at ? dt(d.stats.peak_at, lang) : undefined}
-            />
-            <Stat label={t("st.kpiAvg")} value={fmt(Math.round(d?.stats?.avg_viewers ?? 0))} />
-          </div>
+          {/* KPI（下段=期間内の全chの中での順位） */}
+          {(() => {
+            const k = d?.kpi ?? null;
+            const rk = (r: number | null | undefined): string | undefined =>
+              k && r != null
+                ? lang === "en"
+                  ? `#${r} of ${k.total_channels}`
+                  : `${r}位 / ${k.total_channels}ch`
+                : undefined;
+            return (
+              <>
+                <div className="mt-3 grid grid-cols-2 gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-5 sm:p-4">
+                  <Stat
+                    label={t("st.kpiHours")}
+                    value={`${fmt(d?.stats?.stream_hours)}h`}
+                    sub={rk(k?.stream_hours_rank)}
+                  />
+                  <Stat
+                    label={t("st.kpiViewerHours")}
+                    value={fmt(d?.stats?.viewer_hours)}
+                    sub={rk(k?.viewer_hours_rank)}
+                  />
+                  <Stat
+                    label={t("an.kpiPeak")}
+                    value={fmt(d?.stats?.peak_viewers)}
+                    sub={
+                      rk(k?.peak_rank) != null && d?.stats?.peak_at
+                        ? `${rk(k?.peak_rank)}・${dt(d.stats.peak_at, lang)}`
+                        : rk(k?.peak_rank) ?? (d?.stats?.peak_at ? dt(d.stats.peak_at, lang) : undefined)
+                    }
+                  />
+                  <Stat
+                    label={t("st.kpiAvg")}
+                    value={fmt(Math.round(d?.stats?.avg_viewers ?? 0))}
+                    sub={rk(k?.avg_viewers_rank)}
+                  />
+                  <Stat
+                    label={t("st.kpiAvgDuration")}
+                    value={k ? `${k.avg_session_hours.toLocaleString()}h` : "—"}
+                    sub={rk(k?.avg_session_rank)}
+                  />
+                </div>
+                {k && <p className="mt-1.5 px-1 text-[10px] text-slate-400">{t("st.kpiRankNote")}</p>}
+              </>
+            );
+          })()}
 
           {/* 時間帯・曜日の傾向 */}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -459,7 +514,10 @@ export default function StreamerDetailPage() {
                             {dt(s.started_at, lang)}
                           </div>
                           <div className="tabular-nums">
-                            〜{timeOnly(s.ended_at)}・{fmt(s.hours)}h
+                            〜{timeOnly(s.ended_at)}
+                            {durLabel(s.started_at, s.ended_at) && (
+                              <>・{durLabel(s.started_at, s.ended_at)}</>
+                            )}
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
