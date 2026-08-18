@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegistrar from "./ServiceWorkerRegistrar";
 import AnalyticsTracker from "./AnalyticsTracker";
+import { LocaleProvider } from "./components/LocaleProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mario-tennis-fever-live.vercel.app"),
@@ -54,7 +55,7 @@ export default function RootLayout({
             __html: `try{if(localStorage.getItem('fl-theme')==='dark'){document.documentElement.classList.add('dark');var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content','#0d1410')}}catch(e){}`,
           }}
         />
-        {children}
+        <LocaleProvider>{children}</LocaleProvider>
         <ServiceWorkerRegistrar />
         <AnalyticsTracker />
       </body>

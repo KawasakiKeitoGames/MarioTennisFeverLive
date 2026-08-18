@@ -1,6 +1,8 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { useLang } from "../components/LocaleProvider";
+import { intlLocale, type Lang } from "@/lib/i18n";
 
 export interface Session {
   platform: "youtube" | "twitch";
@@ -16,16 +18,17 @@ const LABEL_W = 88; // チャンネル名カラムの幅(px)
 const RLABEL_W = 72; // 右端の名前カラムの幅(px・sm以上のみ表示)。sm:right-[72px] と一致必須
 
 // JSTの時刻ラベル。期間が長いほど日付主体にする。
-function jstLabel(t: number, hours: number): string {
+function jstLabel(t: number, hours: number, lang: Lang): string {
   const d = new Date(t);
+  const loc = intlLocale(lang);
   const o: Intl.DateTimeFormatOptions = { timeZone: "Asia/Tokyo", hour12: false };
-  if (hours <= 24) return d.toLocaleTimeString("ja-JP", { ...o, hour: "2-digit", minute: "2-digit" });
-  if (hours <= 72) return d.toLocaleString("ja-JP", { ...o, month: "numeric", day: "numeric", hour: "2-digit" });
-  return d.toLocaleDateString("ja-JP", { ...o, month: "numeric", day: "numeric" });
+  if (hours <= 24) return d.toLocaleTimeString(loc, { ...o, hour: "2-digit", minute: "2-digit" });
+  if (hours <= 72) return d.toLocaleString(loc, { ...o, month: "numeric", day: "numeric", hour: "2-digit" });
+  return d.toLocaleDateString(loc, { ...o, month: "numeric", day: "numeric" });
 }
 
 // 目盛り位置（JSTのキリの良い時刻）を窓に対する%で返す。
-function ticksFor(winStart: number, winEnd: number, hours: number) {
+function ticksFor(winStart: number, winEnd: number, hours: number, lang: Lang) {
   const stepH = hours <= 6 ? 1 : hours <= 24 ? 3 : hours <= 72 ? 12 : hours <= 168 ? 24 : 168;
   const stepMs = stepH * 3600e3;
   const JST = 9 * 3600e3;
@@ -33,7 +36,7 @@ function ticksFor(winStart: number, winEnd: number, hours: number) {
   const span = Math.max(1, winEnd - winStart);
   const out: { pct: number; label: string }[] = [];
   for (let t = first; t <= winEnd; t += stepMs) {
-    out.push({ pct: ((t - winStart) / span) * 100, label: jstLabel(t, hours) });
+    out.push({ pct: ((t - winStart) / span) * 100, label: jstLabel(t, hours, lang) });
   }
   return out;
 }
@@ -53,6 +56,7 @@ export default function Timeline({
   hours: number;
   maxLanes?: number;
 }) {
+  const { lang, t } = useLang();
   const laneMap = new Map<
     string,
     { platform: "youtube" | "twitch"; name: string; peak: number; bars: Session[] }
@@ -69,12 +73,12 @@ export default function Timeline({
   const hidden = lanes.length - shown.length;
   const maxPeak = Math.max(1, ...shown.map((l) => l.peak));
   const span = Math.max(1, winEnd - winStart);
-  const ticks = ticksFor(winStart, winEnd, hours);
+  const ticks = ticksFor(winStart, winEnd, hours, lang);
 
   if (shown.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center text-sm text-slate-400">
-        この期間に配信はありません。
+        {t("tl.empty")}
       </div>
     );
   }
@@ -130,7 +134,11 @@ export default function Timeline({
                       <div
                         className="absolute flex items-center justify-end overflow-hidden rounded"
                         style={style}
-                        title={`${l.name}｜${jstLabel(b.start, 24)}〜${jstLabel(b.end, 24)}｜ピーク${b.peak}人`}
+                        title={
+                          lang === "en"
+                            ? `${l.name} | ${jstLabel(b.start, 24, lang)}–${jstLabel(b.end, 24, lang)} | peak ${b.peak}`
+                            : `${l.name}｜${jstLabel(b.start, 24, lang)}〜${jstLabel(b.end, 24, lang)}｜ピーク${b.peak}人`
+                        }
                       >
                         {fitsInside && (
                           <span className="px-1 text-[9px] font-bold tabular-nums text-white">{b.peak}</span>
@@ -180,8 +188,17 @@ export default function Timeline({
       </div>
 
       <p className="mt-2 text-xs text-slate-400">
-        {hidden > 0 ? `ピーク上位${maxLanes}chを表示（ほか${hidden}ch）。` : ""}
-        帯＝配信していた時間、濃さ・数字＝ピーク視聴者数。
+        {lang === "en" ? (
+          <>
+            {hidden > 0 ? `Showing the top ${maxLanes} channels by peak (${hidden} more not shown). ` : ""}
+            Bars = time live; opacity &amp; number = peak viewers.
+          </>
+        ) : (
+          <>
+            {hidden > 0 ? `ピーク上位${maxLanes}chを表示（ほか${hidden}ch）。` : ""}
+            帯＝配信していた時間、濃さ・数字＝ピーク視聴者数。
+          </>
+        )}
       </p>
     </div>
   );

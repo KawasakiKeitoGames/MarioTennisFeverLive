@@ -4,21 +4,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import StreamList from "./components/StreamList";
 import ThemeToggle from "./components/ThemeToggle";
+import LangToggle from "./components/LangToggle";
+import { useLang } from "./components/LocaleProvider";
 import type { StreamSnapshot } from "@/lib/types";
-import { GAMES, type GameId } from "@/lib/games";
+import { GAMES, gameLabel, gameFullName, type GameId } from "@/lib/games";
+import type { Lang } from "@/lib/i18n";
 
 type SortKey = "viewers" | "name" | "elapsed";
-const SORT_LABELS: Record<SortKey, string> = {
-  viewers: "視聴者数",
-  name: "名前順",
-  elapsed: "経過時間",
-};
+const SORT_KEYS = {
+  viewers: "sort.viewers",
+  name: "sort.name",
+  elapsed: "sort.elapsed",
+} as const;
 const REFRESH_MS = 60_000; // 1分ごとに自動更新（Supabaseを読むだけ。外部APIは叩かない）
 
-function relativeTime(iso: string | null): string {
+function relativeTime(iso: string | null, lang: Lang): string {
   if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
   const min = Math.floor(diff / 60000);
+  if (lang === "en") {
+    if (min < 1) return "just now";
+    if (min < 60) return `${min}m ago`;
+    const h = Math.floor(min / 60);
+    return `${h}h ${min % 60}m ago`;
+  }
   if (min < 1) return "たった今";
   if (min < 60) return `${min}分前`;
   const h = Math.floor(min / 60);
@@ -37,6 +46,7 @@ function jstTime(iso: string | null): string {
 }
 
 export default function Home() {
+  const { lang, t } = useLang();
   const [youtube, setYoutube] = useState<StreamSnapshot[]>([]);
   const [twitch, setTwitch] = useState<StreamSnapshot[]>([]);
   const [capturedAt, setCapturedAt] = useState<string | null>(null);
@@ -48,7 +58,7 @@ export default function Home() {
   const [sortKey, setSortKey] = useState<SortKey>("viewers");
   const [game, setGame] = useState<"all" | GameId>("all"); // タイトル切り替え（既定=全タイトル）
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -56,7 +66,7 @@ export default function Home() {
     try {
       const gq = game === "all" ? "" : `?game=${game}`;
       const res = await fetch(`/api/streams${gq}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`取得に失敗しました (${res.status})`);
+      if (!res.ok) throw new Error(`fetch failed (${res.status})`);
       const data = await res.json();
       setYoutube(data.youtube ?? []);
       setTwitch(data.twitch ?? []);
@@ -66,9 +76,9 @@ export default function Home() {
       setPreviousTotal(data.previous_total ?? null);
       setPeakViewers(data.peak_viewers ?? null);
       setPeakAt(data.peak_at ?? null);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "取得に失敗しました");
+      setError(false);
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -107,7 +117,7 @@ export default function Home() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icon-192.png"
-            alt="FEVER LIVE ロゴ"
+            alt="FEVER LIVE"
             width={48}
             height={48}
             className="h-12 w-12 rounded-xl shadow-sm"
@@ -124,11 +134,11 @@ export default function Home() {
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
                 </span>
                 LIVE
-                <span className="font-normal text-red-400">・{relativeTime(capturedAt)}</span>
+                <span className="font-normal text-red-400">・{relativeTime(capturedAt, lang)}</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                更新 {relativeTime(capturedAt)}
+                {t("home.updated")} {relativeTime(capturedAt, lang)}
               </span>
             )}
             {isAdmin && (
@@ -136,30 +146,57 @@ export default function Home() {
                 href="/admin"
                 className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
               >
-                ⚙️ 管理ページ
+                {t("home.admin")}
               </Link>
             )}
+            <LangToggle />
             <ThemeToggle />
           </div>
         </div>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
-          マリオテニス配信中ボード
+          {t("home.title")}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-500">
-          YouTube と Twitch を横断して、いま配信中のマリオテニス シリーズ（
-          {GAMES.map((g) => g.label).join("・")}）を集計。
+          {lang === "en" ? (
+            <>
+              Tracking live Mario Tennis series streams (
+              {GAMES.map((g) => gameLabel(g, lang)).join(", ")}) across YouTube and Twitch.
+            </>
+          ) : (
+            <>
+              YouTube と Twitch を横断して、いま配信中のマリオテニス シリーズ（
+              {GAMES.map((g) => g.label).join("・")}）を集計。
+            </>
+          )}
         </p>
         <ul className="mt-2 space-y-1 text-xs leading-relaxed text-slate-400">
-          <li>
-            <span className="font-bold text-youtube">YouTube</span>：タイトルに各ゲーム名（
-            {GAMES.map((g) => `「${g.fullName}」`).join("")}
-            ）を含むライブ配信（語間の空白や英語表記も対象）
-          </li>
-          <li>
-            <span className="font-bold text-twitch">Twitch</span>：配信カテゴリ（ゲーム）が
-            {GAMES.map((g) => `「${g.twitchCategory}」`).join("")}
-            のライブ配信
-          </li>
+          {lang === "en" ? (
+            <>
+              <li>
+                <span className="font-bold text-youtube">YouTube</span>: live streams whose title
+                contains a game name (
+                {GAMES.map((g) => `“${gameFullName(g, lang)}”`).join(", ")}; Japanese titles and
+                spacing variants also match)
+              </li>
+              <li>
+                <span className="font-bold text-twitch">Twitch</span>: live streams in the game
+                categories {GAMES.map((g) => `“${g.twitchCategory}”`).join(", ")}
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                <span className="font-bold text-youtube">YouTube</span>：タイトルに各ゲーム名（
+                {GAMES.map((g) => `「${g.fullName}」`).join("")}
+                ）を含むライブ配信（語間の空白や英語表記も対象）
+              </li>
+              <li>
+                <span className="font-bold text-twitch">Twitch</span>：配信カテゴリ（ゲーム）が
+                {GAMES.map((g) => `「${g.twitchCategory}」`).join("")}
+                のライブ配信
+              </li>
+            </>
+          )}
         </ul>
       </header>
 
@@ -173,7 +210,7 @@ export default function Home() {
               : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
           }`}
         >
-          すべて
+          {t("common.all")}
         </button>
         {GAMES.map((g) => (
           <button
@@ -186,7 +223,7 @@ export default function Home() {
             }`}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${g.dotClass}`} />
-            {g.label}
+            {gameLabel(g, lang)}
           </button>
         ))}
       </div>
@@ -196,16 +233,16 @@ export default function Home() {
         {/* ヒーロー：いま配信中の合算視聴者＋前回比＋プラットフォーム内訳 */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-baseline">
-            <span className="text-xs text-slate-500">いま配信中</span>
+            <span className="text-xs text-slate-500">{t("home.liveNow")}</span>
             {delta !== null && (
               <span
-                title="本日1つ前の収集時点（Twitchは約2分前・YouTubeは時間帯により6〜30分前）の総視聴者数との差"
+                title={t("home.vsLastTitle")}
                 className={`ml-auto text-xs font-bold tabular-nums ${
                   delta > 0 ? "text-emerald-600" : delta < 0 ? "text-amber-600" : "text-slate-400"
                 }`}
               >
                 {delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${Math.abs(delta)}` : "→ ±0"}
-                <span className="ml-1 font-normal text-slate-400">前回比</span>
+                <span className="ml-1 font-normal text-slate-400">{t("home.vsLast")}</span>
               </span>
             )}
           </div>
@@ -213,7 +250,7 @@ export default function Home() {
             <span className="text-3xl font-black tabular-nums leading-none text-slate-900 sm:text-4xl">
               {grandTotal.toLocaleString("ja-JP")}
             </span>
-            <span className="text-sm text-slate-500">人が視聴中</span>
+            <span className="text-sm text-slate-500">{t("home.watching")}</span>
           </div>
           {/* プラットフォーム内訳バー */}
           <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-slate-100">
@@ -235,23 +272,27 @@ export default function Home() {
         {/* 配信数 ・ 本日ピーク */}
         <div className="grid grid-cols-2 gap-2.5">
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="text-xs text-slate-500">配信数</div>
+            <div className="text-xs text-slate-500">{t("home.streams")}</div>
             <div className="mt-0.5 text-2xl font-black tabular-nums text-slate-900">
               {streamCount}
-              <span className="ml-1 text-xs font-normal text-slate-400">本</span>
+              {lang === "ja" && <span className="ml-1 text-xs font-normal text-slate-400">本</span>}
             </div>
             <div className="mt-0.5 text-[11px] text-slate-400">
               YouTube {youtube.length}・Twitch {twitch.length}
             </div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="text-xs text-slate-500">本日ピーク</div>
+            <div className="text-xs text-slate-500">{t("home.todayPeak")}</div>
             <div className="mt-0.5 text-2xl font-black tabular-nums text-slate-900">
               {peakViewers != null ? peakViewers.toLocaleString("ja-JP") : "—"}
-              <span className="ml-1 text-xs font-normal text-slate-400">人</span>
+              {lang === "ja" && <span className="ml-1 text-xs font-normal text-slate-400">人</span>}
             </div>
             <div className="mt-0.5 text-[11px] text-slate-400">
-              {peakAt ? `${jstTime(peakAt)} ごろ` : "集計中"}
+              {peakAt
+                ? lang === "en"
+                  ? `around ${jstTime(peakAt)} JST`
+                  : `${jstTime(peakAt)} ごろ`
+                : t("home.counting")}
             </div>
           </div>
         </div>
@@ -260,7 +301,7 @@ export default function Home() {
       {/* コントロール */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-y-2 px-1">
         <div className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">並び替え</span>
+          <span className="mr-1 text-xs text-slate-400">{t("home.sort")}</span>
           {(["viewers", "name", "elapsed"] as const).map((k) => (
             <button
               key={k}
@@ -271,7 +312,7 @@ export default function Home() {
                   : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
-              {SORT_LABELS[k]}
+              {t(SORT_KEYS[k])}
             </button>
           ))}
         </div>
@@ -280,25 +321,25 @@ export default function Home() {
             href="/analytics"
             className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
           >
-            📊 ランキング・記録 →
+            {t("nav.analytics")}
           </Link>
           <Link
             href="/history"
             className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
           >
-            📈 推移 →
+            {t("nav.history")}
           </Link>
         </div>
       </div>
 
       {error && (
         <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
+          {t("common.fetchError")}
         </div>
       )}
 
       {loading ? (
-        <div className="py-16 text-center text-slate-400">読み込み中…</div>
+        <div className="py-16 text-center text-slate-400">{t("common.loading")}</div>
       ) : (
         <StreamList
           streams={[...youtube, ...twitch]}
@@ -311,30 +352,31 @@ export default function Home() {
       <footer className="mt-8 space-y-3 border-t border-slate-200 pt-4">
         {/* 取得・更新タイミング（サーバーの収集と、この画面の再読込は別物） */}
         <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs leading-relaxed text-slate-500">
-          <div className="mb-2 font-bold text-slate-600">取得と更新のタイミング</div>
+          <div className="mb-2 font-bold text-slate-600">{t("home.timingTitle")}</div>
           <ul className="space-y-1.5">
             <li className="flex flex-wrap items-baseline gap-x-2">
-              <span className="w-24 shrink-0 font-bold text-youtube">YouTube 取得</span>
-              <span className="tabular-nums text-slate-600">最終 {relativeTime(capturedYouTube)}</span>
-              <span className="text-slate-400">配信が集中する夜ほど短い間隔（20:00〜翌1:00 頃は約6分・夕方は約15分・日中は約30分）</span>
+              <span className="w-24 shrink-0 font-bold text-youtube">{t("home.ytFetch")}</span>
+              <span className="tabular-nums text-slate-600">
+                {t("home.last")} {relativeTime(capturedYouTube, lang)}
+              </span>
+              <span className="text-slate-400">{t("home.ytFetchDesc")}</span>
             </li>
             <li className="flex flex-wrap items-baseline gap-x-2">
-              <span className="w-24 shrink-0 font-bold text-twitch">Twitch 取得</span>
-              <span className="tabular-nums text-slate-600">最終 {relativeTime(capturedTwitch)}</span>
-              <span className="text-slate-400">終日ほぼ一定で約2分ごと</span>
+              <span className="w-24 shrink-0 font-bold text-twitch">{t("home.twFetch")}</span>
+              <span className="tabular-nums text-slate-600">
+                {t("home.last")} {relativeTime(capturedTwitch, lang)}
+              </span>
+              <span className="text-slate-400">{t("home.twFetchDesc")}</span>
             </li>
             <li className="flex flex-wrap items-baseline gap-x-2">
-              <span className="w-24 shrink-0 font-bold text-slate-600">画面の更新</span>
-              <span className="tabular-nums text-slate-600">1分ごと</span>
-              <span className="text-slate-400">取得済みデータを自動で再読込（閲覧時に外部APIは呼び出しません）</span>
+              <span className="w-24 shrink-0 font-bold text-slate-600">{t("home.screenRefresh")}</span>
+              <span className="tabular-nums text-slate-600">{t("home.every1min")}</span>
+              <span className="text-slate-400">{t("home.refreshDesc")}</span>
             </li>
           </ul>
-          <p className="mt-2 text-slate-400">視聴者数は取得時点の同時視聴者数です。</p>
+          <p className="mt-2 text-slate-400">{t("home.viewersNote")}</p>
         </div>
-        <p className="text-xs leading-relaxed text-slate-500">
-          本サイトは非公式のファン制作サイトです。任天堂株式会社および「マリオテニス」シリーズ各作品の公式、YouTube・Twitch とは一切関係ありません。
-          各名称・商標は各権利者に帰属します。
-        </p>
+        <p className="text-xs leading-relaxed text-slate-500">{t("common.disclaimer")}</p>
       </footer>
     </main>
   );

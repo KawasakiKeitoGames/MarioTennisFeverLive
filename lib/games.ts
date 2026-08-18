@@ -8,7 +8,9 @@ export type GameId = "fever" | "aces" | "mt64";
 export interface GameDef {
   id: GameId;
   label: string; // タブ・バッジ用の短い表示名
+  labelEn: string; // 英語UIでの短い表示名
   fullName: string; // 正式名（説明文用）
+  fullNameEn: string; // 英語の正式名
   twitchCategory: string; // Twitchの配信カテゴリ名（完全一致）
   ytKeywords: string[]; // YouTubeタイトル判別キーワード（空白無視・小文字化して部分一致）
   badgeClass: string; // ゲームバッジの配色
@@ -20,7 +22,9 @@ export const GAMES: GameDef[] = [
   {
     id: "fever",
     label: "フィーバー",
+    labelEn: "Fever",
     fullName: "マリオテニスフィーバー",
+    fullNameEn: "Mario Tennis Fever",
     twitchCategory: "Mario Tennis Fever",
     ytKeywords: ["マリオテニスフィーバー", "mario tennis fever"],
     badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -30,7 +34,9 @@ export const GAMES: GameDef[] = [
   {
     id: "aces",
     label: "エース",
+    labelEn: "Aces",
     fullName: "マリオテニス エース",
+    fullNameEn: "Mario Tennis Aces",
     twitchCategory: "Mario Tennis Aces",
     ytKeywords: ["マリオテニスエース", "mario tennis aces"],
     badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
@@ -40,7 +46,9 @@ export const GAMES: GameDef[] = [
   {
     id: "mt64",
     label: "64",
+    labelEn: "64",
     fullName: "マリオテニス64",
+    fullNameEn: "Mario Tennis 64",
     // N64版の海外タイトルは「Mario Tennis」で、Twitchカテゴリ名もこれ
     twitchCategory: "Mario Tennis",
     ytKeywords: ["マリオテニス64", "mario tennis 64"],
@@ -56,6 +64,14 @@ export const GAME_BY_ID: ReadonlyMap<GameId, GameDef> = new Map(
 
 export function isGameId(v: string | null | undefined): v is GameId {
   return v != null && GAMES.some((g) => g.id === v);
+}
+
+// 言語別の表示名（英語UIのときだけ labelEn / fullNameEn を使う）
+export function gameLabel(g: GameDef, lang: "ja" | "en"): string {
+  return lang === "en" ? g.labelEn : g.label;
+}
+export function gameFullName(g: GameDef, lang: "ja" | "en"): string {
+  return lang === "en" ? g.fullNameEn : g.fullName;
 }
 
 // タイトルの空白（半角/全角）を無視して小文字で突き合わせる。

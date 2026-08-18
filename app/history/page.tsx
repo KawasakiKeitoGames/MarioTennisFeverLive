@@ -12,7 +12,10 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import Timeline, { type Session } from "./Timeline";
-import { GAMES, type GameId } from "@/lib/games";
+import { GAMES, gameLabel, type GameId } from "@/lib/games";
+import LangToggle from "../components/LangToggle";
+import { useLang } from "../components/LocaleProvider";
+import { intlLocale, type Lang } from "@/lib/i18n";
 
 type Platform = "all" | "youtube" | "twitch";
 interface TotalPoint {
@@ -21,14 +24,14 @@ interface TotalPoint {
 }
 
 const RANGES = [
-  { label: "6時間", hours: 6 },
-  { label: "24時間", hours: 24 },
-  { label: "3日", hours: 72 },
-  { label: "7日", hours: 168 },
-  { label: "30日", hours: 720 },
+  { ja: "6時間", en: "6h", hours: 6 },
+  { ja: "24時間", en: "24h", hours: 24 },
+  { ja: "3日", en: "3d", hours: 72 },
+  { ja: "7日", en: "7d", hours: 168 },
+  { ja: "30日", en: "30d", hours: 720 },
 ];
-const PLATFORMS: { key: Platform; label: string }[] = [
-  { key: "all", label: "合算" },
+const PLATFORMS: { key: Platform; label: string | null }[] = [
+  { key: "all", label: null }, // null＝翻訳（hist.combined）を使う
   { key: "youtube", label: "YouTube" },
   { key: "twitch", label: "Twitch" },
 ];
@@ -37,17 +40,18 @@ const YOUTUBE = "#e62117";
 const TWITCH = "#9146ff";
 
 // X軸ラベル（JST）。期間が長いほど日付主体に。
-function jstAxis(t: number, hours: number): string {
+function jstAxis(t: number, hours: number, lang: Lang): string {
   const d = new Date(t);
+  const loc = intlLocale(lang);
   const o: Intl.DateTimeFormatOptions = { timeZone: "Asia/Tokyo", hour12: false };
-  if (hours <= 24) return d.toLocaleTimeString("ja-JP", { ...o, hour: "2-digit", minute: "2-digit" });
-  if (hours <= 72) return d.toLocaleString("ja-JP", { ...o, month: "numeric", day: "numeric", hour: "2-digit" });
-  return d.toLocaleDateString("ja-JP", { ...o, month: "numeric", day: "numeric" });
+  if (hours <= 24) return d.toLocaleTimeString(loc, { ...o, hour: "2-digit", minute: "2-digit" });
+  if (hours <= 72) return d.toLocaleString(loc, { ...o, month: "numeric", day: "numeric", hour: "2-digit" });
+  return d.toLocaleDateString(loc, { ...o, month: "numeric", day: "numeric" });
 }
 
 // ツールチップ用のフル日時（JST）。
-function jstFull(t: number): string {
-  return new Date(t).toLocaleString("ja-JP", {
+function jstFull(t: number, lang: Lang): string {
+  return new Date(t).toLocaleString(intlLocale(lang), {
     timeZone: "Asia/Tokyo",
     month: "numeric",
     day: "numeric",
@@ -58,6 +62,7 @@ function jstFull(t: number): string {
 }
 
 export default function HistoryPage() {
+  const { lang, t } = useLang();
   const [hours, setHours] = useState(24);
   const [platform, setPlatform] = useState<Platform>("all");
   const [game, setGame] = useState<"all" | GameId>("all");
@@ -100,26 +105,35 @@ export default function HistoryPage() {
           href="/"
           className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
         >
-          🏠 ライブボードに戻る
+          {t("nav.home")}
         </Link>
         <Link
           href="/analytics"
           className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
         >
-          📊 ランキング・記録 →
+          {t("nav.analytics")}
         </Link>
+        <span className="ml-auto">
+          <LangToggle />
+        </span>
       </div>
       <h1 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-        視聴者数の<span className="text-brand">推移</span>
+        {lang === "en" ? (
+          <>
+            Viewer <span className="text-brand">Trends</span>
+          </>
+        ) : (
+          <>
+            視聴者数の<span className="text-brand">推移</span>
+          </>
+        )}
       </h1>
-      <p className="mt-2 text-sm text-slate-500">
-        上：総同時視聴者数のうごき／下：どのチャンネルがいつ配信していたか。
-      </p>
+      <p className="mt-2 text-sm text-slate-500">{t("hist.subtitle")}</p>
 
       {/* コントロール */}
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">タイトル</span>
+          <span className="mr-1 text-xs text-slate-400">{t("hist.game")}</span>
           <button
             onClick={() => setGame("all")}
             className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
@@ -128,7 +142,7 @@ export default function HistoryPage() {
                 : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
             }`}
           >
-            すべて
+            {t("common.all")}
           </button>
           {GAMES.map((g) => (
             <button
@@ -141,12 +155,12 @@ export default function HistoryPage() {
               }`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${g.dotClass}`} />
-              {g.label}
+              {gameLabel(g, lang)}
             </button>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">対象</span>
+          <span className="mr-1 text-xs text-slate-400">{t("hist.platform")}</span>
           {PLATFORMS.map((p) => (
             <button
               key={p.key}
@@ -161,12 +175,12 @@ export default function HistoryPage() {
                   : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
-              {p.label}
+              {p.label ?? t("hist.combined")}
             </button>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">期間</span>
+          <span className="mr-1 text-xs text-slate-400">{t("hist.range")}</span>
           {RANGES.map((r) => (
             <button
               key={r.hours}
@@ -177,7 +191,7 @@ export default function HistoryPage() {
                   : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
-              {r.label}
+              {lang === "en" ? r.en : r.ja}
             </button>
           ))}
         </div>
@@ -186,20 +200,22 @@ export default function HistoryPage() {
       {/* 総同時視聴者数の推移 */}
       <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
         <div className="mb-2 flex items-baseline justify-between px-1">
-          <h2 className="text-sm font-bold text-slate-700">総同時視聴者数</h2>
+          <h2 className="text-sm font-bold text-slate-700">{t("hist.total")}</h2>
           <span className="text-xs text-slate-400">
-            ピーク{" "}
+            {t("hist.peak")}{" "}
             <span className="font-bold tabular-nums" style={{ color: accent }}>
               {peak.toLocaleString()}
-            </span>{" "}
-            人
+            </span>
+            {lang === "ja" && <> 人</>}
           </span>
         </div>
         {loading ? (
-          <div className="flex h-[240px] items-center justify-center text-slate-400">読み込み中…</div>
+          <div className="flex h-[240px] items-center justify-center text-slate-400">
+            {t("common.loading")}
+          </div>
         ) : points.length === 0 ? (
           <div className="flex h-[240px] items-center justify-center text-slate-400">
-            この期間のデータはまだありません。
+            {t("hist.noData")}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
@@ -216,7 +232,7 @@ export default function HistoryPage() {
                 type="number"
                 scale="time"
                 domain={[winStart, winEnd]}
-                tickFormatter={(v) => jstAxis(v as number, hours)}
+                tickFormatter={(v) => jstAxis(v as number, hours, lang)}
                 tick={{ fill: "#94a3b8", fontSize: 11 }}
                 minTickGap={40}
                 stroke="#e2e8f0"
@@ -238,21 +254,18 @@ export default function HistoryPage() {
 
       {/* 配信タイムライン */}
       <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-        <h2 className="mb-3 px-1 text-sm font-bold text-slate-700">配信タイムライン</h2>
+        <h2 className="mb-3 px-1 text-sm font-bold text-slate-700">{t("hist.timeline")}</h2>
         {loading ? (
-          <div className="flex h-40 items-center justify-center text-slate-400">読み込み中…</div>
+          <div className="flex h-40 items-center justify-center text-slate-400">
+            {t("common.loading")}
+          </div>
         ) : (
           <Timeline sessions={tlSessions} winStart={winStart} winEnd={winEnd} hours={hours} />
         )}
       </section>
 
-      <p className="mt-4 px-1 text-xs text-slate-400">
-        総同時視聴者数は各時点の YouTube＋Twitch の同時視聴合算です（配信のない時間帯は0）。
-        タイムラインの帯は配信していた時間、濃さはピーク視聴者数を表します。
-      </p>
-      <p className="mt-2 px-1 text-xs text-slate-400">
-        本サイトは非公式のファン制作サイトです。任天堂株式会社および各権利者とは一切関係ありません。
-      </p>
+      <p className="mt-4 px-1 text-xs text-slate-400">{t("hist.note")}</p>
+      <p className="mt-2 px-1 text-xs text-slate-400">{t("common.disclaimerShort")}</p>
     </main>
   );
 }
@@ -268,19 +281,20 @@ function TotalTip({
   payload?: { value?: number }[];
   accent: string;
 }) {
+  const { lang, t } = useLang();
   if (!active || !payload || payload.length === 0) return null;
   const v = payload[0]?.value ?? 0;
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
       <div className="mb-0.5 font-bold text-slate-500">
-        {typeof label === "number" ? jstFull(label) : ""}
+        {typeof label === "number" ? jstFull(label, lang) : ""}
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-slate-600">同時視聴</span>
+        <span className="text-slate-600">{t("hist.tipViewers")}</span>
         <span className="ml-auto font-bold tabular-nums" style={{ color: accent }}>
           {(v as number).toLocaleString()}
         </span>
-        <span className="text-slate-400">人</span>
+        {lang === "ja" && <span className="text-slate-400">人</span>}
       </div>
     </div>
   );

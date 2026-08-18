@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLang } from "./LocaleProvider";
 
 // ダークテーマ切り替え（SENSEKI FEVER と同じ案A グリーンティント配色）。
 // 端末ごとの好みで localStorage に保存（既定はライト）。
@@ -11,6 +12,7 @@ const THEME_COLOR_LIGHT = "#f8fafc";
 const THEME_COLOR_DARK = "#0d1410";
 
 export default function ThemeToggle() {
+  const { t } = useLang();
   // SSRとのhydration不一致を避けるため、マウント後に現在の状態を読む
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -34,8 +36,8 @@ export default function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      aria-label={dark ? "ライトテーマに切り替え" : "ダークテーマに切り替え"}
-      title={dark ? "ライトテーマに切り替え" : "ダークテーマに切り替え"}
+      aria-label={dark ? t("theme.toLight") : t("theme.toDark")}
+      title={dark ? t("theme.toLight") : t("theme.toDark")}
       className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-sm shadow-sm transition-colors hover:bg-slate-50"
     >
       {dark ? "☀️" : "🌙"}

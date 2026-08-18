@@ -12,7 +12,10 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { GAMES, type GameId } from "@/lib/games";
+import { GAMES, gameLabel, type GameId } from "@/lib/games";
+import LangToggle from "../components/LangToggle";
+import { useLang } from "../components/LocaleProvider";
+import { intlLocale, tr, type Lang } from "@/lib/i18n";
 
 type PlatformSel = "all" | "youtube" | "twitch";
 
@@ -92,20 +95,23 @@ interface InsightsData {
 }
 
 const PERIODS = [
-  { label: "7日", days: 7 },
-  { label: "30日", days: 30 },
-  { label: "90日", days: 90 },
+  { ja: "7日", en: "7d", days: 7 },
+  { ja: "30日", en: "30d", days: 30 },
+  { ja: "90日", en: "90d", days: 90 },
 ];
 const MIN_PERIOD = 7; // 常に選べる最小期間
-const PLATFORMS: { key: PlatformSel; label: string }[] = [
-  { key: "all", label: "すべて" },
+const PLATFORMS: { key: PlatformSel; label: string | null }[] = [
+  { key: "all", label: null }, // null＝翻訳（common.all）を使う
   { key: "youtube", label: "YouTube" },
   { key: "twitch", label: "Twitch" },
 ];
 
 // JST曜日: 0=日。表示は月始まりにする。
 const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const DOW_LABEL: Record<number, string> = { 0: "日", 1: "月", 2: "火", 3: "水", 4: "木", 5: "金", 6: "土" };
+const DOW_LABEL: Record<Lang, Record<number, string>> = {
+  ja: { 0: "日", 1: "月", 2: "火", 3: "水", 4: "木", 5: "金", 6: "土" },
+  en: { 0: "Su", 1: "Mo", 2: "Tu", 3: "We", 4: "Th", 5: "Fr", 6: "Sa" },
+};
 
 function fmt(n: number | null | undefined): string {
   return (n ?? 0).toLocaleString("ja-JP");
@@ -114,9 +120,9 @@ function mdLabel(ymd: string): string {
   const [, m, d] = ymd.split("-");
   return `${Number(m)}/${Number(d)}`;
 }
-function dt(iso: string | null): string {
+function dt(iso: string | null, lang: Lang = "ja"): string {
   if (!iso) return "—";
-  const p = new Intl.DateTimeFormat("ja-JP", {
+  const p = new Intl.DateTimeFormat(intlLocale(lang), {
     timeZone: "Asia/Tokyo",
     month: "numeric",
     day: "numeric",
@@ -146,6 +152,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 
 export default function AnalyticsPage() {
+  const { lang, t } = useLang();
   const [days, setDays] = useState(7);
   const [platform, setPlatform] = useState<PlatformSel>("all");
   const [game, setGame] = useState<"all" | GameId>("all");
@@ -162,14 +169,17 @@ export default function AnalyticsPage() {
       .finally(() => setLoading(false));
   }, [days, platform, game]);
 
+  // 折れ線の系列名は凡例にそのまま出るため、言語別のキー名でデータを組む
+  const peakKey = tr(lang, "an.chartPeak");
+  const avgKey = tr(lang, "an.chartAvg");
   const activityChart = useMemo(
     () =>
       (d?.activity ?? []).map((r) => ({
         t: mdLabel(r.day),
-        ピーク同時視聴: r.peak_viewers,
-        平均同時視聴: r.avg_viewers,
+        [peakKey]: r.peak_viewers,
+        [avgKey]: r.avg_viewers,
       })),
-    [d],
+    [d, peakKey, avgKey],
   );
 
   const kpi = useMemo(() => {
@@ -227,7 +237,9 @@ export default function AnalyticsPage() {
     }
     const wePerDay = weekend / 2;
     const wdPerDay = weekday / 5;
-    const dayType = wePerDay > wdPerDay * 1.25 ? "土日" : wdPerDay > wePerDay * 1.25 ? "平日" : "ほぼ毎日";
+    // 表示はレンダー時に言語別へ変換するため、ここでは種別キーだけ持つ
+    const dayType: "weekend" | "weekday" | "daily" =
+      wePerDay > wdPerDay * 1.25 ? "weekend" : wdPerDay > wePerDay * 1.25 ? "weekday" : "daily";
     const endHour = (bestStart + 3) % 24;
     const endLabel = bestStart + 3 <= 24 ? bestStart + 3 : bestStart + 3 - 24; // 21〜24時 のように読ませる
     return { start: bestStart, endHour, endLabel, dayType, byHour, hourMax };
@@ -274,26 +286,35 @@ export default function AnalyticsPage() {
           href="/"
           className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
         >
-          🏠 ライブボードに戻る
+          {t("nav.home")}
         </Link>
         <Link
           href="/history"
           className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
         >
-          📈 推移 →
+          {t("nav.history")}
         </Link>
+        <span className="ml-auto">
+          <LangToggle />
+        </span>
       </div>
       <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-        配信<span className="text-brand">ランキング</span>・記録
+        {lang === "en" ? (
+          <>
+            Stream <span className="text-brand">Rankings</span> &amp; Records
+          </>
+        ) : (
+          <>
+            配信<span className="text-brand">ランキング</span>・記録
+          </>
+        )}
       </h1>
-      <p className="mt-2 text-sm leading-relaxed text-slate-500">
-        誰が・どの配信が・いつ盛り上がっているか。収集済みデータだけから集計しています（閲覧時に外部APIは呼びません）。
-      </p>
+      <p className="mt-2 text-sm leading-relaxed text-slate-500">{t("an.subtitle")}</p>
 
       {/* コントロール */}
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex flex-wrap items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">タイトル</span>
+          <span className="mr-1 text-xs text-slate-400">{t("hist.game")}</span>
           <button
             onClick={() => setGame("all")}
             className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
@@ -302,7 +323,7 @@ export default function AnalyticsPage() {
                 : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
             }`}
           >
-            すべて
+            {t("common.all")}
           </button>
           {GAMES.map((g) => (
             <button
@@ -315,12 +336,12 @@ export default function AnalyticsPage() {
               }`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${g.dotClass}`} />
-              {g.label}
+              {gameLabel(g, lang)}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">対象</span>
+          <span className="mr-1 text-xs text-slate-400">{t("hist.platform")}</span>
           {PLATFORMS.map((p) => (
             <button
               key={p.key}
@@ -331,12 +352,12 @@ export default function AnalyticsPage() {
                   : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
-              {p.label}
+              {p.label ?? t("common.all")}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <span className="mr-1 text-xs text-slate-400">期間</span>
+          <span className="mr-1 text-xs text-slate-400">{t("hist.range")}</span>
           {PERIODS.map((r) => {
             const enabled = periodEnabled(r.days);
             return (
@@ -344,7 +365,13 @@ export default function AnalyticsPage() {
                 key={r.days}
                 onClick={() => enabled && setDays(r.days)}
                 disabled={!enabled}
-                title={enabled ? undefined : `データが${r.days}日分たまると選べます`}
+                title={
+                  enabled
+                    ? undefined
+                    : lang === "en"
+                      ? `Unlocks once ${r.days} days of data are collected`
+                      : `データが${r.days}日分たまると選べます`
+                }
                 className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
                   days === r.days
                     ? "border-brand bg-brand/10 text-brand"
@@ -353,40 +380,59 @@ export default function AnalyticsPage() {
                       : "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
                 }`}
               >
-                {r.label}
+                {lang === "en" ? r.en : r.ja}
               </button>
             );
           })}
         </div>
         {d?.headline?.span_days != null && (
-          <span className="text-[11px] text-slate-400">データ蓄積 {span}日</span>
+          <span className="text-[11px] text-slate-400">
+            {lang === "en" ? `${span} ${t("an.daysOfData")}` : `${t("an.daysOfData")} ${span}日`}
+          </span>
         )}
       </div>
 
       {/* 低データ時の前向きな案内（30日ビューが未解放のあいだ） */}
       {d?.headline?.span_days != null && span < 30 && (
         <div className="mt-3 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
-          📈 データ蓄積 <span className="font-bold text-brand">{span}日目</span>。30日ビューまであと{" "}
-          <span className="font-bold text-brand">{Math.max(1, 30 - span)}日</span>
-          。いまは直近{days}日ぶんで集計しています（日々たまるほど傾向が安定します）。
+          {lang === "en" ? (
+            <>
+              📈 Day <span className="font-bold text-brand">{span}</span> of data collection —{" "}
+              <span className="font-bold text-brand">{Math.max(1, 30 - span)}</span> more{" "}
+              {Math.max(1, 30 - span) === 1 ? "day" : "days"} until the 30-day view. Showing the last{" "}
+              {days} days for now (trends stabilize as data accumulates).
+            </>
+          ) : (
+            <>
+              📈 データ蓄積 <span className="font-bold text-brand">{span}日目</span>。30日ビューまであと{" "}
+              <span className="font-bold text-brand">{Math.max(1, 30 - span)}日</span>
+              。いまは直近{days}日ぶんで集計しています（日々たまるほど傾向が安定します）。
+            </>
+          )}
         </div>
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-slate-400">読み込み中…</div>
+        <div className="py-20 text-center text-slate-400">{t("common.loading")}</div>
       ) : (
         <>
           {/* KPI（視聴者・人ベース） */}
           <div className="mt-5 grid grid-cols-2 gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-4 sm:p-4">
             <Stat
-              label="ピーク同時視聴"
+              label={t("an.kpiPeak")}
               value={fmt(kpi.peakViewers)}
-              sub={kpi.peakAt ? `${dt(kpi.peakAt)} ごろ` : "期間中の最大"}
+              sub={
+                kpi.peakAt
+                  ? lang === "en"
+                    ? `around ${dt(kpi.peakAt, lang)}`
+                    : `${dt(kpi.peakAt, lang)} ごろ`
+                  : t("an.kpiPeakSub")
+              }
             />
-            <Stat label="延べ配信時間" value={`${fmt(kpi.totalHours)}h`} sub="配信×時間" />
-            <Stat label="配信したch" value={fmt(kpi.activeChannels)} sub="期間内" />
+            <Stat label={t("an.kpiHours")} value={`${fmt(kpi.totalHours)}h`} sub={t("an.kpiHoursSub")} />
+            <Stat label={t("an.kpiChannels")} value={fmt(kpi.activeChannels)} sub={t("an.kpiChannelsSub")} />
             <Stat
-              label="最高視聴の配信"
+              label={t("an.kpiRecord")}
               value={fmt(kpi.recordViewers)}
               sub={kpi.recordChannel ?? "—"}
             />
@@ -394,13 +440,11 @@ export default function AnalyticsPage() {
 
           {/* 配信ハイライト（記録） */}
           <section className="mt-6">
-            <h2 className="mb-1 text-sm font-black text-slate-700">配信ハイライト（最高視聴）</h2>
-            <p className="mb-2 text-[11px] text-slate-400">
-              期間内でいちばん見られた配信の記録。ランクや大会の熱い瞬間が並びます。
-            </p>
+            <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.highlights")}</h2>
+            <p className="mb-2 text-[11px] text-slate-400">{t("an.highlightsDesc")}</p>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               {(d?.top_streams ?? []).length === 0 ? (
-                <p className="text-xs text-slate-400">この期間の配信記録はまだありません。</p>
+                <p className="text-xs text-slate-400">{t("an.highlightsEmpty")}</p>
               ) : (
                 <ol className="space-y-1.5">
                   {(d?.top_streams ?? []).map((s, i) => {
@@ -423,15 +467,17 @@ export default function AnalyticsPage() {
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-bold text-slate-700">{s.channel_name}</div>
                           <div className="truncate text-[11px] text-slate-400">
-                            {s.title ?? "（無題）"}
+                            {s.title ?? t("an.untitled")}
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
                           <div className="font-black tabular-nums text-slate-900">
                             {fmt(s.peak_viewers)}
-                            <span className="ml-0.5 text-[10px] font-normal text-slate-400">人</span>
+                            {lang === "ja" && (
+                              <span className="ml-0.5 text-[10px] font-normal text-slate-400">人</span>
+                            )}
                           </div>
-                          <div className="text-[10px] text-slate-400">{dt(s.started_at)}</div>
+                          <div className="text-[10px] text-slate-400">{dt(s.started_at, lang)}</div>
                         </div>
                       </>
                     );
@@ -459,14 +505,12 @@ export default function AnalyticsPage() {
 
           {/* 盛り上がり推移 */}
           <section className="mt-6">
-            <h2 className="mb-1 text-sm font-black text-slate-700">コミュニティの盛り上がり（日別）</h2>
-            <p className="mb-2 text-[11px] text-slate-400">
-              同時視聴者数の推移（日別のピーク／平均）。アップデートや大会の日ほど跳ねます。
-            </p>
+            <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.activity")}</h2>
+            <p className="mb-2 text-[11px] text-slate-400">{t("an.activityDesc")}</p>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               {activityChart.length === 0 ? (
                 <div className="flex h-[280px] items-center justify-center text-slate-400">
-                  この期間のデータはまだありません。
+                  {t("hist.noData")}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
@@ -483,8 +527,8 @@ export default function AnalyticsPage() {
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: 11, color: "#475569" }} />
-                    <Line type="monotone" dataKey="ピーク同時視聴" stroke="#16a34a" strokeWidth={2} dot={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="平均同時視聴" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey={peakKey} stroke="#16a34a" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey={avgKey} stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -493,10 +537,8 @@ export default function AnalyticsPage() {
 
           {/* ヒートマップ */}
           <section className="mt-6">
-            <h2 className="mb-1 text-sm font-black text-slate-700">配信の時間帯ヒートマップ</h2>
-            <p className="mb-2 text-[11px] text-slate-400">
-              曜日 × 時間（日本時間）ごとの平均同時配信数。濃いほど配信が多い時間帯です。
-            </p>
+            <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.heatmap")}</h2>
+            <p className="mb-2 text-[11px] text-slate-400">{t("an.heatmapDesc")}</p>
             <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               <div className="min-w-[560px]">
                 <div className="mb-1 flex pl-6">
@@ -508,7 +550,9 @@ export default function AnalyticsPage() {
                 </div>
                 {DOW_ORDER.map((dow) => (
                   <div key={dow} className="flex items-center">
-                    <div className="w-6 shrink-0 text-right pr-1 text-[10px] text-slate-500">{DOW_LABEL[dow]}</div>
+                    <div className="w-6 shrink-0 text-right pr-1 text-[10px] text-slate-500">
+                      {DOW_LABEL[lang][dow]}
+                    </div>
                     {Array.from({ length: 24 }, (_, h) => {
                       const v = heat.map.get(dow * 24 + h) ?? 0;
                       const intensity = heat.max > 0 ? v / heat.max : 0;
@@ -516,7 +560,11 @@ export default function AnalyticsPage() {
                         <div key={h} className="flex-1 px-[1px]">
                           <div
                             className="h-4 rounded-[3px]"
-                            title={`${DOW_LABEL[dow]} ${h}時: 平均${v}配信`}
+                            title={
+                              lang === "en"
+                                ? `${DOW_LABEL.en[dow]} ${h}:00 — avg ${v} streams`
+                                : `${DOW_LABEL.ja[dow]} ${h}時: 平均${v}配信`
+                            }
                             style={{
                               background:
                                 intensity === 0 ? "var(--heat-empty, #f1f5f9)" : `rgba(22,163,74,${0.12 + intensity * 0.88})`,
@@ -528,11 +576,11 @@ export default function AnalyticsPage() {
                   </div>
                 ))}
                 <div className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-slate-400">
-                  少
+                  {t("an.less")}
                   <span className="h-2.5 w-3.5 rounded-[2px]" style={{ background: "rgba(22,163,74,0.2)" }} />
                   <span className="h-2.5 w-3.5 rounded-[2px]" style={{ background: "rgba(22,163,74,0.55)" }} />
                   <span className="h-2.5 w-3.5 rounded-[2px]" style={{ background: "rgba(22,163,74,1)" }} />
-                  多
+                  {t("an.more")}
                 </div>
               </div>
             </div>
@@ -546,14 +594,33 @@ export default function AnalyticsPage() {
                   <span className="text-lg leading-none">🎯</span>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-bold text-slate-700">
-                      配信を見つけやすいのは{" "}
-                      <span className="text-brand">
-                        {primeTime.dayType}の {primeTime.start}〜{primeTime.endLabel}時ごろ
-                      </span>
+                      {lang === "en" ? (
+                        <>
+                          Best time to find streams:{" "}
+                          <span className="text-brand">
+                            {
+                              { weekend: "weekends", weekday: "weekdays", daily: "most days" }[
+                                primeTime.dayType
+                              ]
+                            }{" "}
+                            around {primeTime.start}:00–{primeTime.endLabel}:00 JST
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          配信を見つけやすいのは{" "}
+                          <span className="text-brand">
+                            {
+                              { weekend: "土日", weekday: "平日", daily: "ほぼ毎日" }[
+                                primeTime.dayType
+                              ]
+                            }
+                            の {primeTime.start}〜{primeTime.endLabel}時ごろ
+                          </span>
+                        </>
+                      )}
                     </div>
-                    <p className="mt-0.5 text-[11px] text-slate-400">
-                      いちばん配信が重なりやすい時間帯です（日本時間）。
-                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">{t("an.primeSub")}</p>
                     {/* 24時間ミニバー（緑=狙い目の3時間） */}
                     <div className="mt-2 flex items-end gap-[2px]" style={{ height: 28 }}>
                       {primeTime.byHour.map((v, h) => {
@@ -565,7 +632,11 @@ export default function AnalyticsPage() {
                         return (
                           <div
                             key={h}
-                            title={`${h}時: 平均${Math.round(v * 10) / 10}配信`}
+                            title={
+                              lang === "en"
+                                ? `${h}:00 — avg ${Math.round(v * 10) / 10} streams`
+                                : `${h}時: 平均${Math.round(v * 10) / 10}配信`
+                            }
                             className="flex-1 rounded-[1px]"
                             style={{ height: hgt, background: inBand ? "#16a34a" : "#cbd5e1" }}
                           />
@@ -573,11 +644,11 @@ export default function AnalyticsPage() {
                       })}
                     </div>
                     <div className="mt-1 flex justify-between text-[9px] text-slate-300">
-                      <span>0時</span>
+                      <span>{lang === "en" ? "0:00" : "0時"}</span>
                       <span>6</span>
                       <span>12</span>
                       <span>18</span>
-                      <span>23時</span>
+                      <span>{lang === "en" ? "23:00" : "23時"}</span>
                     </div>
                   </div>
                 </div>
@@ -588,10 +659,8 @@ export default function AnalyticsPage() {
           {/* 配信者の時間帯マップ（誰がどの時間帯に配信していることが多いか） */}
           {channelHours.length > 0 && (
             <section className="mt-6">
-              <h2 className="mb-1 text-sm font-black text-slate-700">配信者の時間帯マップ</h2>
-              <p className="mb-2 text-[11px] text-slate-400">
-                よく配信している上位chが、どの時間帯（日本時間）に配信していることが多いか。濃いほどその時間の配信時間が長め。右は特に多い連続3時間帯。
-              </p>
+              <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.chMap")}</h2>
+              <p className="mb-2 text-[11px] text-slate-400">{t("an.chMapDesc")}</p>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                 <div className="min-w-[560px]">
                   {/* 時間軸ヘッダ */}
@@ -619,7 +688,11 @@ export default function AnalyticsPage() {
                           <div key={h} className="flex-1 px-[1px]">
                             <div
                               className="h-4 rounded-[3px]"
-                              title={`${c.name} ${h}時台: 配信${v}h`}
+                              title={
+                                lang === "en"
+                                  ? `${c.name} ${h}:00 — ${v}h streamed`
+                                  : `${c.name} ${h}時台: 配信${v}h`
+                              }
                               style={{
                                 background:
                                   v === 0
@@ -632,9 +705,9 @@ export default function AnalyticsPage() {
                       </div>
                       <div
                         className="w-16 shrink-0 pl-1.5 text-right text-[10px] tabular-nums text-slate-400"
-                        title="期間内でもっとも配信が多い連続3時間帯"
+                        title={t("an.chMapBestTitle")}
                       >
-                        {c.bestStart}〜{c.endLabel}時
+                        {lang === "en" ? `${c.bestStart}–${c.endLabel}` : `${c.bestStart}〜${c.endLabel}時`}
                       </div>
                     </div>
                   ))}
@@ -654,13 +727,11 @@ export default function AnalyticsPage() {
           <div className="mt-6 grid gap-6 sm:grid-cols-2">
             {/* 配信者ランキング（盛り上がり順＝延べ視聴時間） */}
             <section>
-              <h2 className="mb-2 text-sm font-black text-slate-700">配信者ランキング（盛り上がり順）</h2>
-              <p className="mb-2 text-[11px] text-slate-400">
-                延べ視聴時間（同時視聴×時間の合計）で順位付け。YouTube / Twitch の収集頻度差はならして公平に比較しています。
-              </p>
+              <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.leaderboard")}</h2>
+              <p className="mb-2 text-[11px] text-slate-400">{t("an.leaderboardDesc")}</p>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 {(d?.leaderboard ?? []).length === 0 ? (
-                  <p className="text-xs text-slate-400">まだデータがありません。</p>
+                  <p className="text-xs text-slate-400">{t("an.noDataYet")}</p>
                 ) : (
                   <ol className="space-y-2.5">
                     {(d?.leaderboard ?? []).map((c, i) => (
@@ -674,12 +745,16 @@ export default function AnalyticsPage() {
                             style={{ width: `${Math.round((c.viewer_hours / maxLeader) * 100)}%` }}
                           />
                           <div className="mt-0.5 text-[10px] text-slate-400">
-                            配信{fmt(c.stream_hours)}h・ピーク{fmt(c.peak_viewers)}人
+                            {lang === "en"
+                              ? `${fmt(c.stream_hours)}h streamed · peak ${fmt(c.peak_viewers)}`
+                              : `配信${fmt(c.stream_hours)}h・ピーク${fmt(c.peak_viewers)}人`}
                           </div>
                         </div>
                         <span className="shrink-0 text-right font-bold tabular-nums text-slate-900">
                           {fmt(c.viewer_hours)}
-                          <span className="ml-0.5 text-[10px] font-normal text-slate-400">視聴h</span>
+                          <span className="ml-0.5 text-[10px] font-normal text-slate-400">
+                            {t("an.viewerHours")}
+                          </span>
                         </span>
                       </li>
                     ))}
@@ -690,10 +765,10 @@ export default function AnalyticsPage() {
 
             {/* 新規参入 */}
             <section>
-              <h2 className="mb-2 text-sm font-black text-slate-700">新規参入ch（初観測が最近）</h2>
+              <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.newcomers")}</h2>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 {(d?.new_channels ?? []).length === 0 ? (
-                  <p className="text-xs text-slate-400">直近の新規参入はありません。</p>
+                  <p className="text-xs text-slate-400">{t("an.newcomersEmpty")}</p>
                 ) : (
                   <ul className="space-y-2.5">
                     {(d?.new_channels ?? []).slice(0, 12).map((c) => (
@@ -703,7 +778,9 @@ export default function AnalyticsPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-slate-700">{c.channel_name}</div>
-                          <div className="text-[11px] text-slate-400">初観測 {dt(c.first_seen)}</div>
+                          <div className="text-[11px] text-slate-400">
+                            {t("an.firstSeen")} {dt(c.first_seen, lang)}
+                          </div>
                         </div>
                       </li>
                     ))}
@@ -716,18 +793,16 @@ export default function AnalyticsPage() {
           {/* 登録者の伸び（エンリッチ有効時のみ） */}
           {hasGrowth && (
             <section className="mt-6">
-              <h2 className="mb-1 text-sm font-black text-slate-700">登録者の伸び（YouTube・期間内）</h2>
-              <p className="mb-2 text-[11px] text-slate-400">
-                期間の最古→最新の登録者数の差。登録者数は3桁単位に丸められています。
-              </p>
+              <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.growth")}</h2>
+              <p className="mb-2 text-[11px] text-slate-400">{t("an.growthDesc")}</p>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                      <th className="px-4 py-2 font-medium">チャンネル</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">登録者</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">増加</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">伸び率</th>
+                      <th className="px-4 py-2 font-medium">{t("an.thChannel")}</th>
+                      <th className="px-4 py-2 font-medium tabular-nums">{t("an.thSubs")}</th>
+                      <th className="px-4 py-2 font-medium tabular-nums">{t("an.thDelta")}</th>
+                      <th className="px-4 py-2 font-medium tabular-nums">{t("an.thGrowth")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -753,8 +828,9 @@ export default function AnalyticsPage() {
           )}
 
           <p className="mt-8 border-t border-slate-200 pt-4 text-xs leading-relaxed text-slate-400">
-            本サイトは非公式のファン制作サイトです。任天堂株式会社および各権利者とは一切関係ありません。
-            集計は保存済みデータのみを用い、閲覧時に外部APIは呼び出しません。
+            {t("common.disclaimerShort")}
+            {lang === "ja" ? "" : " "}
+            {t("an.footer")}
           </p>
         </>
       )}
