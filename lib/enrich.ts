@@ -218,7 +218,8 @@ async function enrichYouTubeStreamDetails(
   apiKey: string,
 ): Promise<{ count: number; units: number }> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase.rpc("yt_streams_needing_details", { p_days: 7 });
+  // 30日分を対象にする（取得済み・終了確定分は除外されるので、2回目以降は差分のみ＝数ユニット）
+  const { data, error } = await supabase.rpc("yt_streams_needing_details", { p_days: 30 });
   if (error) throw new Error(`yt_streams_needing_details: ${error.message}`);
   const targets = (data ?? []) as { stream_id: string; channel_id: string }[];
   if (targets.length === 0) return { count: 0, units: 0 };

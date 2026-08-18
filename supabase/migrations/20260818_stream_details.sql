@@ -93,9 +93,15 @@ language sql stable as $$
     from g
     group by sid
   )
+  -- 実測時間で上書きするのは YouTube のみ（動画=配信単位のため）。
+  -- Twitch の VOD は配信全体（複数カテゴリを含みうる）で、セッションはカテゴリ単位の
+  -- 観測なので時間は観測スパンのまま（収集2分間隔で十分正確）。VODは
+  -- 「セッション開始時刻を含むアーカイブ」への直リンクとしてのみ使う。
   select se.started_at, se.ended_at, se.peak_viewers, se.avg_viewers, se.hours,
          se.title, se.url, se.game,
-         d.actual_start, d.actual_end, d.duration_seconds,
+         case when p_platform = 'youtube' then d.actual_start end     as actual_start,
+         case when p_platform = 'youtube' then d.actual_end end       as actual_end,
+         case when p_platform = 'youtube' then d.duration_seconds end as duration_seconds,
          case when p_platform = 'twitch' and d.video_id is not null
               then 'https://www.twitch.tv/videos/' || d.video_id
               else null end as vod_url
@@ -107,9 +113,9 @@ language sql stable as $$
       and (
         (p_platform = 'youtube' and sd.video_id = se.sess_stream_id)
         or (p_platform = 'twitch' and sd.channel_id = p_channel_id
-            and sd.actual_start is not null
-            and sd.actual_start between se.started_at - interval '30 minutes'
-                                    and se.started_at + interval '30 minutes')
+            and sd.actual_start is not null and sd.actual_end is not null
+            and se.started_at >= sd.actual_start - interval '5 minutes'
+            and se.started_at <  sd.actual_end   + interval '5 minutes')
       )
     order by abs(extract(epoch from (sd.actual_start - se.started_at))) asc
     limit 1
