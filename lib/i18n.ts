@@ -118,8 +118,8 @@ const DICT = {
   "list.trendUp": { ja: "上昇", en: "Rising" },
   "list.trendDown": { ja: "下降", en: "Falling" },
   "list.trendTitle": {
-    ja: "約20分前と比べた同時視聴者数の増減（±3人以上かつ±5%以上で表示）",
-    en: "Change in concurrent viewers vs ~20 min ago (shown at ±3+ viewers and ±5%+)",
+    ja: "少し前（約20〜60分前・収集間隔による）と比べた同時視聴者数の増減（±3人以上かつ±5%以上で表示）",
+    en: "Change in concurrent viewers vs a while ago (~20–60 min, depending on collection interval; shown at ±3+ viewers and ±5%+)",
   },
 
   // 推移

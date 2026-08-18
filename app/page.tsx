@@ -113,7 +113,8 @@ export default function Home() {
     <main className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
       {/* ヘッダー */}
       <header className="mb-5">
-        <div className="mb-3 flex items-center gap-3">
+        {/* 幅が足りないときはピル群を丸ごと2行目に折り返す（ピル内の縦折れ防止） */}
+        <div className="mb-3 flex flex-wrap items-center gap-3 gap-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icon-192.png"
@@ -122,13 +123,13 @@ export default function Home() {
             height={48}
             className="h-12 w-12 rounded-xl shadow-sm"
           />
-          <span className="text-xl font-black tracking-tight text-brand sm:text-2xl">
+          <span className="whitespace-nowrap text-xl font-black tracking-tight text-brand sm:text-2xl">
             FEVER LIVE
           </span>
           <div className="ml-auto flex items-center gap-2">
             {/* 更新状態のピル。配信中は赤いLIVE、0件なら控えめに更新時刻だけ表示 */}
             {streamCount > 0 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-600">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-bold text-red-600">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
@@ -137,14 +138,14 @@ export default function Home() {
                 <span className="font-normal text-red-400">・{relativeTime(capturedAt, lang)}</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+              <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
                 {t("home.updated")} {relativeTime(capturedAt, lang)}
               </span>
             )}
             {isAdmin && (
               <Link
                 href="/admin"
-                className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
               >
                 {t("home.admin")}
               </Link>

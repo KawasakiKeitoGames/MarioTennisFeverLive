@@ -166,8 +166,9 @@ export default function StreamList({
 
                   {/* チャンネル名 + タイトル + バッジ */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-[15px] leading-tight text-slate-900 truncate group-hover:underline">
+                    {/* スマホは名前を1行占有させ、バッジ類は下の行に折り返す（名前が見切れないように） */}
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+                      <span className="w-full truncate font-bold text-[15px] leading-tight text-slate-900 group-hover:underline sm:w-auto">
                         {s.channel_name ?? s.channel_id}
                       </span>
                       <span
