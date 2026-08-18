@@ -180,6 +180,7 @@ export default async function AdminPage({
     viewDailyRes,
     clickDailyRes,
     topClickedRes,
+    streamerViewsRes,
     clickCountriesRes,
     pathViewsRes,
     clicksByPathRes,
@@ -215,6 +216,7 @@ export default async function AdminPage({
     supabase.rpc("events_daily", { p_days: days, p_type: "view" }),
     supabase.rpc("events_daily", { p_days: days, p_type: "click" }),
     supabase.rpc("top_clicked", { p_days: days, p_limit: 20 }),
+    supabase.rpc("streamer_page_views", { p_days: days, p_limit: 15 }),
     supabase.rpc("click_countries", { p_days: days }),
     supabase.rpc("path_views", { p_days: days }),
     supabase.rpc("clicks_by_path", { p_days: days }),
@@ -285,6 +287,13 @@ export default async function AdminPage({
     platform: string;
     clicks: number;
     countries: Record<string, number> | null;
+  }[];
+  const streamerViews = (streamerViewsRes.data ?? []) as {
+    platform: string;
+    channel_id: string;
+    channel_name: string;
+    views: number;
+    uniques: number;
   }[];
   const clickCountries = (clickCountriesRes.data ?? []) as { country: string; clicks: number }[];
   const pathViews = (pathViewsRes.data ?? []) as { path: string; count: number }[];
@@ -491,7 +500,8 @@ export default async function AdminPage({
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {/* 人気リンク */}
+          {/* 人気リンク・配信者ページ閲覧 */}
+          <div className="space-y-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-2 text-xs font-black text-slate-700">人気の配信リンク（クリック数）</div>
             {topClicked.length === 0 ? (
@@ -528,6 +538,41 @@ export default async function AdminPage({
                 })}
               </ol>
             )}
+          </div>
+
+          {/* 配信者詳細ページの閲覧ランキング */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-2 text-xs font-black text-slate-700">よく見られた配信者ページ（閲覧数）</div>
+            {streamerViews.length === 0 ? (
+              <p className="text-xs text-slate-400">まだ閲覧がありません。</p>
+            ) : (
+              <ol className="space-y-1.5">
+                {streamerViews.map((v, i) => (
+                  <li key={`${v.platform}-${v.channel_id}`} className="flex items-center gap-2 text-sm">
+                    <span className="w-5 shrink-0 text-right text-xs font-bold text-slate-400">{i + 1}</span>
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        v.platform === "twitch" ? "bg-twitch" : "bg-youtube"
+                      }`}
+                    />
+                    <Link
+                      href={`/streamers/${v.platform}/${v.channel_id}`}
+                      className="min-w-0 flex-1 truncate text-slate-700 hover:text-brand hover:underline"
+                    >
+                      {v.channel_name}
+                    </Link>
+                    <span className="shrink-0 tabular-nums text-xs text-slate-500">
+                      <span className="font-bold text-slate-900">{fmt(v.views)}</span>
+                      <span className="ml-1 text-slate-400">UU {fmt(v.uniques)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+              /streamers/PF/チャンネルID の閲覧数（UU=ユニークビジター）。名前クリックで公開ページへ。
+            </p>
+          </div>
           </div>
 
           {/* 流入元・国別・パス別 */}
