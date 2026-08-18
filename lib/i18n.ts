@@ -59,8 +59,12 @@ const DICT = {
   },
   "st.rankNew": { ja: "前期間データなし", en: "no data in prev. period" },
   "st.dataNote": {
-    ja: "数値は本サイトが収集したスナップショットに基づく推定値です（収集間隔の粒度）。",
-    en: "Figures are estimates based on snapshots collected by this site.",
+    ja: "数値は本サイトが収集したスナップショットに基づく推定値です（収集間隔の粒度）。✓付きの配信時間はアーカイブから取得した実測値です（1日1回更新）。",
+    en: "Figures are estimates based on snapshots collected by this site. Durations marked ✓ are actual times from the archive (updated once a day).",
+  },
+  "st.actualTitle": {
+    ja: "アーカイブから取得した実測の配信時間",
+    en: "Actual duration from the archive",
   },
 
   // トップ（ライブボード）

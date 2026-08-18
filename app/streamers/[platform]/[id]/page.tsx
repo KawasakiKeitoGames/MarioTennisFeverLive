@@ -34,6 +34,11 @@ interface RecentStream {
   title: string | null;
   url: string | null;
   game: string | null;
+  // アーカイブから取得した実測情報（エンリッチ済みのときのみ）
+  actual_start: string | null;
+  actual_end: string | null;
+  duration_seconds: number | null;
+  vod_url: string | null;
 }
 interface ChannelRow {
   title: string | null;
@@ -119,14 +124,19 @@ function ymd(iso: string | null, lang: Lang): string {
 function pfRgb(platform: string): string {
   return platform === "twitch" ? "145,70,255" : "230,33,23";
 }
-// 観測スパンからの配信時間ラベル（"6h18m" / "42m"。1分未満は非表示=null）
-function durLabel(startIso: string, endIso: string): string | null {
-  const min = Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000);
+// 分数 → "6h18m" / "42m"（1分未満は非表示=null）
+function minLabel(min: number): string | null {
   if (min < 1) return null;
   if (min < 60) return `${min}m`;
   const h = Math.floor(min / 60);
   const m = min % 60;
   return m === 0 ? `${h}h` : `${h}h${m}m`;
+}
+// 観測スパンからの配信時間ラベル
+function durLabel(startIso: string, endIso: string): string | null {
+  return minLabel(
+    Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000),
+  );
 }
 
 // チャンネルページ（外部）URL
@@ -505,18 +515,31 @@ export default function StreamerDetailPage() {
               ) : (
                 <ul className="divide-y divide-slate-50">
                   {(d?.recent ?? []).map((s, i) => {
-                    const href = streamUrl(platform, s.url);
+                    // 実測（アーカイブ）があればそちらを優先。リンクもTwitchはVOD直リンクに。
+                    const isActual = s.duration_seconds != null && s.actual_start != null;
+                    const start = isActual ? (s.actual_start as string) : s.started_at;
+                    const end = s.actual_end ?? s.ended_at;
+                    const dur = isActual
+                      ? minLabel(Math.round((s.duration_seconds as number) / 60))
+                      : durLabel(s.started_at, s.ended_at);
+                    const href = s.vod_url ?? streamUrl(platform, s.url);
                     const gameDef = s.game && isGameId(s.game) ? GAME_BY_ID.get(s.game) : null;
                     const row = (
                       <>
                         <div className="w-24 shrink-0 text-[11px] leading-tight text-slate-500">
                           <div className="font-bold tabular-nums text-slate-700">
-                            {dt(s.started_at, lang)}
+                            {dt(start, lang)}
                           </div>
                           <div className="tabular-nums">
-                            〜{timeOnly(s.ended_at)}
-                            {durLabel(s.started_at, s.ended_at) && (
-                              <>・{durLabel(s.started_at, s.ended_at)}</>
+                            〜{timeOnly(end)}
+                            {dur && <>・{dur}</>}
+                            {isActual && (
+                              <span
+                                className="ml-0.5 align-middle text-[8px] font-bold text-emerald-600"
+                                title={t("st.actualTitle")}
+                              >
+                                ✓
+                              </span>
                             )}
                           </div>
                         </div>

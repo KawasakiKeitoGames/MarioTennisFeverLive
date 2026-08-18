@@ -15,6 +15,8 @@ export interface EnrichResult {
   ok: boolean;
   youtube: number;
   twitch: number;
+  yt_details: number;
+  tw_vods: number;
   units_est: number;
   error?: string;
 }
@@ -205,6 +207,144 @@ function num(v: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// =====================================================================
+// 配信の実測時間（stream_details）
+//   YouTube: videos.list(liveStreamingDetails) = 1ユニット/50本。
+//            actual_end が未確定（配信中に取得）の動画は翌日再取得される。
+//   Twitch : Get Videos(type=archive) をアクティブch分（ユニット概念なし）。
+// =====================================================================
+
+async function enrichYouTubeStreamDetails(
+  apiKey: string,
+): Promise<{ count: number; units: number }> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase.rpc("yt_streams_needing_details", { p_days: 7 });
+  if (error) throw new Error(`yt_streams_needing_details: ${error.message}`);
+  const targets = (data ?? []) as { stream_id: string; channel_id: string }[];
+  if (targets.length === 0) return { count: 0, units: 0 };
+  const chById = new Map(targets.map((t) => [t.stream_id, t.channel_id]));
+
+  let count = 0;
+  let units = 0;
+  const now = new Date().toISOString();
+  for (const group of chunk(targets.map((t) => t.stream_id), 50)) {
+    const url =
+      `${YT_BASE}/videos?part=liveStreamingDetails,snippet&id=${group.join(",")}` +
+      `&maxResults=50&key=${apiKey}`;
+    const res = await fetch(url, { cache: "no-store" });
+    units += 1; // videos.list は 1リクエスト=1ユニット（最大50件）
+    if (!res.ok) {
+      console.error(`[enrich YT details] ${res.status} ${await res.text()}`);
+      continue;
+    }
+    const data2 = (await res.json()) as {
+      items?: Array<{
+        id: string;
+        snippet?: { title?: string };
+        liveStreamingDetails?: { actualStartTime?: string; actualEndTime?: string };
+      }>;
+    };
+    const rows = [];
+    for (const it of data2.items ?? []) {
+      const ld = it.liveStreamingDetails;
+      if (!ld?.actualStartTime) continue; // ライブ由来でない動画は対象外
+      const start = new Date(ld.actualStartTime).getTime();
+      const end = ld.actualEndTime ? new Date(ld.actualEndTime).getTime() : null;
+      rows.push({
+        platform: "youtube",
+        video_id: it.id,
+        channel_id: chById.get(it.id) ?? null,
+        actual_start: ld.actualStartTime,
+        actual_end: ld.actualEndTime ?? null,
+        duration_seconds: end != null ? Math.max(0, Math.round((end - start) / 1000)) : null,
+        title: it.snippet?.title ?? null,
+        fetched_at: now,
+      });
+    }
+    if (rows.length) {
+      const { error: e2 } = await supabase
+        .from("stream_details")
+        .upsert(rows, { onConflict: "platform,video_id" });
+      if (e2) console.error("[enrich YT details] upsert:", e2.message);
+      else count += rows.length;
+    }
+  }
+  return { count, units };
+}
+
+// Twitch の duration 文字列（"1h2m3s" 等）→ 秒
+function parseTwitchDuration(s: string | undefined): number | null {
+  if (!s) return null;
+  const m = s.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (!m) return null;
+  return (Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0)) || null;
+}
+
+async function enrichTwitchVods(
+  logins: string[],
+  clientId: string,
+  secret: string,
+): Promise<{ count: number }> {
+  const supabase = createServiceClient();
+  const token = await twitchToken(clientId, secret);
+  const headers = { "Client-ID": clientId, Authorization: `Bearer ${token}` };
+  const now = new Date().toISOString();
+
+  // login → user_id（Get Videos は user_id 指定のため）
+  const idByLogin = new Map<string, string>();
+  for (const group of chunk(logins, 100)) {
+    const qs = group.map((l) => `login=${encodeURIComponent(l)}`).join("&");
+    const res = await fetch(`https://api.twitch.tv/helix/users?${qs}`, { headers, cache: "no-store" });
+    if (!res.ok) {
+      console.error(`[enrich TW vods] users ${res.status} ${await res.text()}`);
+      continue;
+    }
+    const data = (await res.json()) as { data?: Array<{ id?: string; login?: string }> };
+    for (const u of data.data ?? []) {
+      if (u.login && u.id) idByLogin.set(u.login, u.id);
+    }
+  }
+
+  let count = 0;
+  for (const [login, userId] of idByLogin) {
+    const res = await fetch(
+      `https://api.twitch.tv/helix/videos?user_id=${userId}&type=archive&first=10`,
+      { headers, cache: "no-store" },
+    );
+    if (!res.ok) {
+      console.error(`[enrich TW vods] videos(${login}) ${res.status} ${await res.text()}`);
+      continue;
+    }
+    const data = (await res.json()) as {
+      data?: Array<{ id?: string; title?: string; created_at?: string; duration?: string }>;
+    };
+    const rows = [];
+    for (const v of data.data ?? []) {
+      if (!v.id || !v.created_at) continue;
+      const dur = parseTwitchDuration(v.duration);
+      rows.push({
+        platform: "twitch",
+        video_id: v.id,
+        channel_id: login,
+        actual_start: v.created_at,
+        actual_end:
+          dur != null ? new Date(new Date(v.created_at).getTime() + dur * 1000).toISOString() : null,
+        duration_seconds: dur,
+        title: v.title ?? null,
+        fetched_at: now,
+      });
+    }
+    if (rows.length) {
+      const { error } = await supabase
+        .from("stream_details")
+        .upsert(rows, { onConflict: "platform,video_id" });
+      if (error) console.error("[enrich TW vods] upsert:", error.message);
+      else count += rows.length;
+    }
+  }
+  return { count };
+}
+
 // エンリッチ本体。cron ルートから呼ぶ。
 export async function runEnrich(): Promise<EnrichResult> {
   const supabase = createServiceClient();
@@ -219,6 +359,8 @@ export async function runEnrich(): Promise<EnrichResult> {
   let ytCount = 0;
   let ytUnits = 0;
   let twCount = 0;
+  let ytDetails = 0;
+  let twVods = 0;
   const errors: string[] = [];
 
   const ytKey = process.env.YT_API_KEY;
@@ -232,6 +374,17 @@ export async function runEnrich(): Promise<EnrichResult> {
     }
   }
 
+  // 配信の実測時間（YouTube: videos.list=1ユニット/50本）
+  if (ytKey) {
+    try {
+      const r = await enrichYouTubeStreamDetails(ytKey);
+      ytDetails = r.count;
+      ytUnits += r.units;
+    } catch (e) {
+      errors.push(`YT details: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   const twId = process.env.TWITCH_CLIENT_ID;
   const twSecret = process.env.TWITCH_CLIENT_SECRET;
   if (twId && twSecret && tw.length) {
@@ -241,12 +394,31 @@ export async function runEnrich(): Promise<EnrichResult> {
     } catch (e) {
       errors.push(`Twitch: ${e instanceof Error ? e.message : e}`);
     }
+
+    // VODの実測時間（直近7日にアクティブなchのみ・アーカイブ上位10本ずつ）
+    try {
+      const { data: recentData, error: recentErr } = await supabase.rpc("active_channels", {
+        p_days: 7,
+      });
+      if (recentErr) throw new Error(recentErr.message);
+      const targets = ((recentData ?? []) as ActiveChannel[])
+        .filter((c) => c.platform === "twitch")
+        .map((c) => c.channel_id);
+      if (targets.length) {
+        const r = await enrichTwitchVods(targets, twId, twSecret);
+        twVods = r.count;
+      }
+    } catch (e) {
+      errors.push(`TW vods: ${e instanceof Error ? e.message : e}`);
+    }
   }
 
   return {
     ok: errors.length === 0,
     youtube: ytCount,
     twitch: twCount,
+    yt_details: ytDetails,
+    tw_vods: twVods,
     units_est: ytUnits,
     error: errors.length ? errors.join(" / ") : undefined,
   };
