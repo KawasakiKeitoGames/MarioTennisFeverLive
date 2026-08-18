@@ -40,6 +40,11 @@ export async function POST(request: Request) {
     target_url: type === "click" ? clamp(payload.target_url, 500) : null,
     visitor: clamp(payload.visitor, 64),
     country: clamp(request.headers.get("x-vercel-ip-country"), 2)?.toUpperCase() ?? null,
+    // クリック種別（未指定=視聴リンク。集計側で 'stream' として扱う）
+    kind:
+      type === "click" && (payload.kind === "vod" || payload.kind === "channel")
+        ? payload.kind
+        : null,
   };
 
   try {

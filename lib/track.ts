@@ -79,3 +79,27 @@ export function trackClick(s: StreamSnapshot): void {
     true,
   );
 }
+
+// 視聴リンク以外の外部リンク（アーカイブ/チャンネルページ等）のクリック計測。
+// kind: 'vod'=アーカイブ・動画一覧 / 'channel'=チャンネルページ（'stream'相当は trackClick を使う）
+export function trackOutbound(o: {
+  platform: string;
+  channelId: string | null;
+  channelName: string | null;
+  url: string;
+  kind: "vod" | "channel";
+}): void {
+  send(
+    {
+      type: "click",
+      kind: o.kind,
+      path: typeof location !== "undefined" ? location.pathname : null,
+      platform: o.platform,
+      channel_id: o.channelId,
+      channel_name: o.channelName,
+      target_url: o.url,
+      visitor: getVisitor(),
+    },
+    true,
+  );
+}

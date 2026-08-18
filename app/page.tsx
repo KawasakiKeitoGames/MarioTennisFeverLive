@@ -329,6 +329,12 @@ export default function Home() {
           >
             {t("nav.history")}
           </Link>
+          <Link
+            href="/streamers"
+            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+          >
+            {t("nav.streamers")}
+          </Link>
         </div>
       </div>
 

@@ -90,6 +90,75 @@ interface SnapshotRow {
   viewers: number | null;
 }
 
+// --- 縦長になりがちなリストのコンパクト行（先頭N件＋<details>で残りを畳む） ---
+
+function CapRows({ caps }: { caps: { captured_at: string; count: number }[] }) {
+  return (
+    <ul>
+      {caps.map((c, i) => (
+        <li
+          key={`${c.captured_at}-${i}`}
+          className="flex items-center justify-between border-b border-slate-50 py-[3px] text-xs last:border-0"
+        >
+          <span className="tabular-nums text-slate-600">{dt(c.captured_at)}</span>
+          <span className="font-bold tabular-nums text-slate-900">{c.count}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ChannelRows({
+  rows,
+}: {
+  rows: { channel_name: string; platform: string; appearances: number; last_seen: string }[];
+}) {
+  return (
+    <ul>
+      {rows.map((c, i) => (
+        <li
+          key={i}
+          className="flex items-center gap-2 border-b border-slate-50 py-1 text-xs last:border-0"
+        >
+          <span
+            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+              c.platform === "twitch" ? "bg-twitch" : "bg-youtube"
+            }`}
+          />
+          <span className="min-w-0 flex-1 truncate text-slate-700">{c.channel_name}</span>
+          <span className="shrink-0 font-bold tabular-nums text-slate-900">
+            {fmt(c.appearances)}
+            <span className="ml-0.5 font-normal text-slate-400">h</span>
+          </span>
+          <span className="w-20 shrink-0 text-right tabular-nums text-slate-400">{dt(c.last_seen)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SnapRows({ rows }: { rows: SnapshotRow[] }) {
+  return (
+    <ul>
+      {rows.map((s) => (
+        <li
+          key={s.id}
+          className="flex items-center gap-2 border-b border-slate-50 py-[3px] text-xs last:border-0"
+        >
+          <span className="w-20 shrink-0 tabular-nums text-slate-400">{dt(s.captured_at)}</span>
+          <span className="min-w-0 flex-1 truncate text-slate-700">
+            {s.channel_name ?? s.channel_id}
+          </span>
+          <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(s.viewers)}</span>
+          <span className="shrink-0">
+            <DeleteSnapshotButton id={s.id} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default async function AdminPage({
   searchParams,
 }: {
@@ -113,6 +182,7 @@ export default async function AdminPage({
     topClickedRes,
     clickCountriesRes,
     pathViewsRes,
+    clicksByPathRes,
     referrersRes,
     channelsRes,
     recentSnapsRes,
@@ -147,6 +217,7 @@ export default async function AdminPage({
     supabase.rpc("top_clicked", { p_days: days, p_limit: 20 }),
     supabase.rpc("click_countries", { p_days: days }),
     supabase.rpc("path_views", { p_days: days }),
+    supabase.rpc("clicks_by_path", { p_days: days }),
     supabase.rpc("top_referrers", { p_days: days, p_limit: 15 }),
     supabase.rpc("channel_appearances", { p_limit: 30 }),
     supabase
@@ -217,6 +288,17 @@ export default async function AdminPage({
   }[];
   const clickCountries = (clickCountriesRes.data ?? []) as { country: string; clicks: number }[];
   const pathViews = (pathViewsRes.data ?? []) as { path: string; count: number }[];
+  const clicksByPath = (clicksByPathRes.data ?? []) as {
+    path: string;
+    clicks: number;
+    kinds: Record<string, number> | null;
+  }[];
+  const clicksMap = new Map(clicksByPath.map((c) => [c.path, c]));
+  const KIND_LABEL: Record<string, string> = {
+    stream: "視聴",
+    vod: "アーカイブ",
+    channel: "チャンネル",
+  };
   const referrers = (referrersRes.data ?? []) as { referrer_host: string; count: number }[];
   const channels = (channelsRes.data ?? []) as {
     channel_name: string;
@@ -486,19 +568,47 @@ export default async function AdminPage({
               )}
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-2 text-xs font-black text-slate-700">ページ別PV</div>
+              <div className="mb-2 text-xs font-black text-slate-700">ページ別PV・クリック率</div>
               {pathViews.length === 0 ? (
                 <p className="text-xs text-slate-400">データなし。</p>
               ) : (
-                <ul className="space-y-1">
-                  {pathViews.map((p, i) => (
-                    <li key={i} className="flex items-center justify-between text-sm">
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-600">{p.path}</span>
-                      <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(p.count)}</span>
-                    </li>
-                  ))}
+                <ul className="space-y-1.5">
+                  {pathViews.map((p, i) => {
+                    const c = clicksMap.get(p.path);
+                    const ctr = c && p.count > 0 ? (c.clicks / p.count) * 100 : null;
+                    const kinds = c?.kinds
+                      ? Object.entries(c.kinds)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([k, n]) => `${KIND_LABEL[k] ?? k}${n}`)
+                          .join("・")
+                      : null;
+                    return (
+                      <li key={i} className="text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-600">{p.path}</span>
+                          <span className="shrink-0 tabular-nums text-xs text-slate-500">
+                            PV <span className="font-bold text-slate-900">{fmt(p.count)}</span>
+                          </span>
+                          <span className="w-24 shrink-0 text-right tabular-nums text-xs text-slate-500">
+                            {c ? (
+                              <>
+                                クリック <span className="font-bold text-slate-900">{fmt(c.clicks)}</span>
+                                <span className="ml-1 text-brand">({ctr?.toFixed(0)}%)</span>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </span>
+                        </div>
+                        {kinds && <div className="text-[10px] text-slate-400">内訳: {kinds}</div>}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+                クリック率＝そのページからの外部リンククリック÷PV。内訳: 視聴=ライブ視聴リンク・アーカイブ=動画/VOD・チャンネル=チャンネルページ。/streamers/* は配信者ページ（全chまとめ）。
+              </p>
             </div>
           </div>
         </div>
@@ -514,30 +624,26 @@ export default async function AdminPage({
               { key: "Twitch", caps: twCaps },
             ] as const
           ).map(({ key, caps }) => (
-            <div key={key} className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                    <th className="px-4 py-2 font-medium">{key}</th>
-                    <th className="px-4 py-2 font-medium tabular-nums">配信数</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {caps.map((c, i) => (
-                    <tr key={`${c.captured_at}-${i}`} className="border-b border-slate-50 last:border-0">
-                      <td className="px-4 py-2 text-slate-600">{dt(c.captured_at)}</td>
-                      <td className="px-4 py-2 font-bold tabular-nums text-slate-900">{c.count}</td>
-                    </tr>
-                  ))}
-                  {caps.length === 0 && (
-                    <tr>
-                      <td colSpan={2} className="px-4 py-4 text-center text-xs text-slate-400">
-                        まだ取得がありません。
-                      </td>
-                    </tr>
+            <div key={key} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="mb-1 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="font-black text-slate-600">{key}</span>
+                <span>取得時刻・配信数</span>
+              </div>
+              {caps.length === 0 ? (
+                <p className="py-3 text-center text-xs text-slate-400">まだ取得がありません。</p>
+              ) : (
+                <>
+                  <CapRows caps={caps.slice(0, 6)} />
+                  {caps.length > 6 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer list-none rounded-lg bg-slate-50 px-2 py-1 text-center text-[11px] font-bold text-slate-400 hover:text-slate-600">
+                        ほか{caps.length - 6}件を表示
+                      </summary>
+                      <CapRows caps={caps.slice(6)} />
+                    </details>
                   )}
-                </tbody>
-              </table>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -546,72 +652,44 @@ export default async function AdminPage({
       {/* チャンネル登場ランキング */}
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-black text-slate-700">観測チャンネル（配信時間・h／PF公平）</h2>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                <th className="px-4 py-2 font-medium">チャンネル</th>
-                <th className="px-4 py-2 font-medium">Pf</th>
-                <th className="px-4 py-2 font-medium tabular-nums">配信h</th>
-                <th className="px-4 py-2 font-medium">最終観測</th>
-              </tr>
-            </thead>
-            <tbody>
-              {channels.map((c, i) => (
-                <tr key={i} className="border-b border-slate-50 last:border-0">
-                  <td className="px-4 py-2 text-slate-700">{c.channel_name}</td>
-                  <td className="px-4 py-2 text-xs text-slate-500">
-                    {c.platform === "twitch" ? "Twitch" : "YouTube"}
-                  </td>
-                  <td className="px-4 py-2 font-bold tabular-nums text-slate-900">{fmt(c.appearances)}</td>
-                  <td className="px-4 py-2 text-xs text-slate-500">{dt(c.last_seen)}</td>
-                </tr>
-              ))}
-              {channels.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-xs text-slate-400">
-                    まだデータがありません。
-                  </td>
-                </tr>
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          {channels.length === 0 ? (
+            <p className="py-3 text-center text-xs text-slate-400">まだデータがありません。</p>
+          ) : (
+            <>
+              <ChannelRows rows={channels.slice(0, 10)} />
+              {channels.length > 10 && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer list-none rounded-lg bg-slate-50 px-2 py-1 text-center text-[11px] font-bold text-slate-400 hover:text-slate-600">
+                    ほか{channels.length - 10}件を表示
+                  </summary>
+                  <ChannelRows rows={channels.slice(10)} />
+                </details>
               )}
-            </tbody>
-          </table>
+            </>
+          )}
         </div>
       </section>
 
       {/* 直近スナップショット（個別削除） */}
       <section className="mb-10">
         <h2 className="mb-2 text-sm font-black text-slate-700">直近スナップショット（個別削除）</h2>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                <th className="px-4 py-2 font-medium">取得時刻</th>
-                <th className="px-4 py-2 font-medium">チャンネル</th>
-                <th className="px-4 py-2 font-medium tabular-nums">視聴者</th>
-                <th className="px-4 py-2 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentSnaps.map((s) => (
-                <tr key={s.id} className="border-b border-slate-50 last:border-0">
-                  <td className="px-4 py-2 text-xs text-slate-500">{dt(s.captured_at)}</td>
-                  <td className="px-4 py-2 text-slate-700">{s.channel_name ?? s.channel_id}</td>
-                  <td className="px-4 py-2 tabular-nums text-slate-700">{fmt(s.viewers)}</td>
-                  <td className="px-4 py-2 text-right">
-                    <DeleteSnapshotButton id={s.id} />
-                  </td>
-                </tr>
-              ))}
-              {recentSnaps.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-xs text-slate-400">
-                    まだスナップショットがありません。
-                  </td>
-                </tr>
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          {recentSnaps.length === 0 ? (
+            <p className="py-3 text-center text-xs text-slate-400">まだスナップショットがありません。</p>
+          ) : (
+            <>
+              <SnapRows rows={recentSnaps.slice(0, 8)} />
+              {recentSnaps.length > 8 && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer list-none rounded-lg bg-slate-50 px-2 py-1 text-center text-[11px] font-bold text-slate-400 hover:text-slate-600">
+                    ほか{recentSnaps.length - 8}件を表示
+                  </summary>
+                  <SnapRows rows={recentSnaps.slice(8)} />
+                </details>
               )}
-            </tbody>
-          </table>
+            </>
+          )}
         </div>
       </section>
 

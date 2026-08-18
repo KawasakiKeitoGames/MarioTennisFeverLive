@@ -16,6 +16,7 @@ import { GAMES, gameLabel, type GameId } from "@/lib/games";
 import LangToggle from "../components/LangToggle";
 import { useLang } from "../components/LocaleProvider";
 import { intlLocale, tr, type Lang } from "@/lib/i18n";
+import { trackOutbound } from "@/lib/track";
 
 type PlatformSel = "all" | "youtube" | "twitch";
 
@@ -36,6 +37,7 @@ interface Headline {
 }
 interface HighlightStream {
   stream_id: string;
+  channel_id: string | null;
   channel_name: string;
   platform: string;
   peak_viewers: number;
@@ -143,11 +145,9 @@ function dt(iso: string | null, lang: Lang = "ja"): string {
 function pfDot(platform: string): string {
   return platform === "twitch" ? "bg-twitch" : "bg-youtube";
 }
-// チャンネルページのURL（Twitchのchannel_idはlogin、YouTubeはUC…のチャンネルID）
-function channelUrl(platform: string, channelId: string): string {
-  return platform === "twitch"
-    ? `https://www.twitch.tv/${channelId}`
-    : `https://www.youtube.com/channel/${channelId}`;
+// サイト内の配信者詳細ページ（基本情報・配信傾向・直近の配信）へのパス
+function streamerPath(platform: string, channelId: string): string {
+  return `/streamers/${platform}/${encodeURIComponent(channelId)}`;
 }
 // 配信ハイライトのリンク先。YouTubeのurlは動画(watch?v=)そのもの。
 // TwitchのurlはチャンネルページなのでVOD一覧(/videos)に飛ばす（動画IDは未収集のため個別VOD指定は不可）。
@@ -361,6 +361,12 @@ export default function AnalyticsPage() {
         >
           {t("nav.history")}
         </Link>
+        <Link
+          href="/streamers"
+          className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+        >
+          {t("nav.streamers")}
+        </Link>
         <span className="ml-auto">
           <LangToggle />
         </span>
@@ -558,6 +564,15 @@ export default function AnalyticsPage() {
                             href={href}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={() =>
+                              trackOutbound({
+                                platform: s.platform,
+                                channelId: s.channel_id,
+                                channelName: s.channel_name,
+                                url: href,
+                                kind: "vod",
+                              })
+                            }
                             className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-sm transition-colors hover:bg-slate-50"
                           >
                             {row}
@@ -756,15 +771,13 @@ export default function AnalyticsPage() {
                     <div key={c.id} className="flex items-center py-[2px]">
                       <div className="flex w-24 shrink-0 items-center gap-1 pr-1">
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
-                        <a
-                          href={channelUrl(c.platform, c.rawId)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <Link
+                          href={streamerPath(c.platform, c.rawId)}
                           className="truncate text-[11px] text-slate-600 hover:text-brand hover:underline"
                           title={c.name}
                         >
                           {c.name}
-                        </a>
+                        </Link>
                       </div>
                       <div className="flex flex-1">
                         {c.hours.map((v, h) => (
@@ -847,14 +860,12 @@ export default function AnalyticsPage() {
                           <span className="w-5 shrink-0 text-right text-xs font-bold text-slate-400">{i + 1}</span>
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
                           <div className="min-w-0 flex-1">
-                            <a
-                              href={channelUrl(c.platform, c.channel_id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <Link
+                              href={streamerPath(c.platform, c.channel_id)}
                               className="block truncate text-slate-700 hover:text-brand hover:underline"
                             >
                               {c.channel_name}
-                            </a>
+                            </Link>
                             <div
                               className="mt-0.5 h-1 rounded-full bg-brand"
                               style={{ width: `${Math.round((c.viewer_hours / maxLeader) * 100)}%` }}
@@ -901,14 +912,12 @@ export default function AnalyticsPage() {
                             {c.channel_name.charAt(0)}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <a
-                              href={channelUrl(c.platform, c.channel_id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <Link
+                              href={streamerPath(c.platform, c.channel_id)}
                               className="block truncate text-xs text-slate-700 hover:text-brand hover:underline"
                             >
                               {c.channel_name}
-                            </a>
+                            </Link>
                             <div className="text-[10px] text-slate-400">
                               {t("an.firstSeen")} {dt(c.first_seen, lang)}
                             </div>
@@ -951,14 +960,12 @@ export default function AnalyticsPage() {
                       .map((g) => (
                         <tr key={g.channel_id} className="border-b border-slate-50 last:border-0">
                           <td className="px-4 py-2 text-slate-700">
-                            <a
-                              href={channelUrl("youtube", g.channel_id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <Link
+                              href={streamerPath("youtube", g.channel_id)}
                               className="hover:text-brand hover:underline"
                             >
                               {g.channel_name}
-                            </a>
+                            </Link>
                           </td>
                           <td className="px-4 py-2 tabular-nums text-slate-700">{fmt(g.latest_subs)}</td>
                           <td className={`px-4 py-2 font-bold tabular-nums ${(g.delta ?? 0) > 0 ? "text-brand" : "text-slate-400"}`}>

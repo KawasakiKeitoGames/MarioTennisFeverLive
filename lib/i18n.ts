@@ -22,6 +22,36 @@ const DICT = {
   "nav.home": { ja: "🏠 ライブボードに戻る", en: "🏠 Back to Live Board" },
   "nav.analytics": { ja: "📊 ランキング・記録 →", en: "📊 Rankings & Records →" },
   "nav.history": { ja: "📈 推移 →", en: "📈 Trends →" },
+  "nav.streamers": { ja: "🔍 配信者検索 →", en: "🔍 Find streamers →" },
+
+  // 配信者検索・詳細
+  "st.title": { ja: "配信者検索", en: "Streamer Search" },
+  "st.subtitle": {
+    ja: "これまでに観測した配信者を名前で検索できます。名前を押すと配信傾向などの詳細が見られます。",
+    en: "Search the streamers we have tracked. Tap a name to see their streaming patterns and details.",
+  },
+  "st.placeholder": { ja: "配信者名で検索…", en: "Search by streamer name…" },
+  "st.recentHeader": { ja: "最近配信したチャンネル", en: "Recently active channels" },
+  "st.resultsHeader": { ja: "検索結果", en: "Results" },
+  "st.noResults": { ja: "見つかりませんでした。", en: "No streamers found." },
+  "st.lastStreamed": { ja: "最終配信", en: "Last streamed" },
+  "st.open": { ja: "チャンネルを開く ↗", en: "Open channel ↗" },
+  "st.subs": { ja: "登録者", en: "Subscribers" },
+  "st.since": { ja: "チャンネル開設", en: "Channel since" },
+  "st.kpiHours": { ja: "配信時間", en: "Stream hours" },
+  "st.kpiViewerHours": { ja: "延べ視聴", en: "Viewer-hours" },
+  "st.kpiAvg": { ja: "平均同時視聴", en: "Avg viewers" },
+  "st.hourTitle": { ja: "時間帯の傾向（日本時間）", en: "Hours of day (JST)" },
+  "st.dowTitle": { ja: "曜日の傾向", en: "Days of week" },
+  "st.recent": { ja: "直近の配信", en: "Recent streams" },
+  "st.notFound": {
+    ja: "このチャンネルのデータが見つかりませんでした。",
+    en: "No data found for this channel.",
+  },
+  "st.dataNote": {
+    ja: "数値は本サイトが収集したスナップショットに基づく推定値です（収集間隔の粒度）。",
+    en: "Figures are estimates based on snapshots collected by this site.",
+  },
 
   // トップ（ライブボード）
   "home.title": { ja: "マリオテニス配信中ボード", en: "Mario Tennis Live Board" },
