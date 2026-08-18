@@ -74,8 +74,8 @@ const DICT = {
   "home.liveNow": { ja: "いま配信中", en: "Live now" },
   "home.vsLast": { ja: "前回比", en: "vs last" },
   "home.vsLastTitle": {
-    ja: "本日1つ前の収集時点（Twitchは約2分前・YouTubeは時間帯により6〜30分前）の総視聴者数との差",
-    en: "Change from the previous collection today (Twitch: ~2 min ago; YouTube: 6–30 min ago depending on time of day)",
+    ja: "本日1つ前の収集時点（Twitchは約2分前・YouTubeは時間帯により5〜60分前）の総視聴者数との差",
+    en: "Change from the previous collection today (Twitch: ~2 min ago; YouTube: 5–60 min ago depending on time of day)",
   },
   "home.watching": { ja: "人が視聴中", en: "watching now" },
   "home.streams": { ja: "配信数", en: "Live streams" },
@@ -92,8 +92,8 @@ const DICT = {
   "home.last": { ja: "最終", en: "Last" },
   "home.every1min": { ja: "1分ごと", en: "Every minute" },
   "home.ytFetchDesc": {
-    ja: "配信が集中する夜ほど短い間隔（20:00〜翌1:00 頃は約6分・夕方は約15分・日中は約30分）",
-    en: "Fetched more often at night when streams peak (~6 min around 20:00–1:00 JST, ~15 min in the evening, ~30 min in the daytime)",
+    ja: "配信が集中する夜ほど短い間隔（21:00〜翌1:00 頃は約5分・夕方〜夜は約10〜15分・深夜は約20分・日中は約60分）",
+    en: "Fetched more often at night when streams peak (~5 min around 21:00–1:00 JST, ~10–15 min in the evening, ~20 min late at night, ~60 min in the daytime)",
   },
   "home.twFetchDesc": {
     ja: "終日ほぼ一定で約2分ごと",
