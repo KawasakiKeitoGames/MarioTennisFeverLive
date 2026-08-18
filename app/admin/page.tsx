@@ -789,8 +789,8 @@ export default async function AdminPage({
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
           間隔は YouTube Data API の1日あたりの上限（10,000ユニット。1回の収集は search 1ページのみで約100ユニット消費）に収まるよう、
-          配信が多いゴールデンタイムほど短く配分しています（合計 約9,700ユニット/日）。実体は Supabase の
-          pg_cron（収集4ジョブ ＋ 掃除 ＋ チャンネルエンリッチ）で、サーバー時刻(UTC)で登録・日本時間で運用しています。
+          直近の実測（時間帯別の平均配信数）に基づき配信が多い時間帯ほど短く配分しています（合計 約9,100ユニット/日）。実体は Supabase の
+          pg_cron（収集ジョブ YouTube 6本＋Twitch 1本 ＋ 掃除 ＋ チャンネルエンリッチ）で、サーバー時刻(UTC)で登録・日本時間で運用しています。
           エンリッチは登録者数・開設日を1日1回だけ取得（クォータリセット直後・50chで1ユニット）します。
         </p>
       </section>
