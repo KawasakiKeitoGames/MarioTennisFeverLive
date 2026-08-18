@@ -123,6 +123,12 @@ const DICT = {
     ja: "この期間の配信記録はまだありません。",
     en: "No stream records for this period yet.",
   },
+  "an.highlightsLinkNote": {
+    ja: "リンク先：YouTubeは配信アーカイブ動画、Twitchはチャンネルの動画一覧（アーカイブは配信者の設定・保存期間により無い場合があります）。",
+    en: "Links: YouTube opens the stream video; Twitch opens the channel's videos tab (VODs may be unavailable depending on the streamer's settings).",
+  },
+  "an.showAll": { ja: "すべて表示", en: "Show all" },
+  "an.showLess": { ja: "閉じる", en: "Show less" },
   "an.untitled": { ja: "（無題）", en: "(untitled)" },
   "an.activity": { ja: "コミュニティの盛り上がり（日別）", en: "Community activity (daily)" },
   "an.activityDesc": {
@@ -144,9 +150,10 @@ const DICT = {
   },
   "an.chMap": { ja: "配信者の時間帯マップ", en: "Streamer schedule map" },
   "an.chMapDesc": {
-    ja: "よく配信している上位chが、どの時間帯（日本時間）に配信していることが多いか。濃いほどその時間の配信時間が長め。右は特に多い連続3時間帯。",
-    en: "When the most active channels usually stream (JST). Darker = more hours streamed in that slot. Right: their busiest 3-hour window.",
+    ja: "よく配信している上位chが、どの時間帯（日本時間）に配信していることが多いか。濃いほどその時間の配信時間が長め。右は曜日ごとの配信量と、特に多い連続3時間帯。",
+    en: "When the most active channels usually stream (JST). Darker = more hours streamed in that slot. Right: hours by day of week, and their busiest 3-hour window.",
   },
+  "an.dowHeader": { ja: "曜日", en: "Day" },
   "an.chMapBestTitle": {
     ja: "期間内でもっとも配信が多い連続3時間帯",
     en: "Busiest consecutive 3-hour window in the period",

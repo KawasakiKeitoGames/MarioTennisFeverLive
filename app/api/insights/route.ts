@@ -16,8 +16,17 @@ export async function GET(request: Request) {
 
   const supabase = createPublicClient();
 
-  const [headline, activity, heatmap, newCh, leaderboard, growth, topStreams, hourProfile] =
-    await Promise.all([
+  const [
+    headline,
+    activity,
+    heatmap,
+    newCh,
+    leaderboard,
+    growth,
+    topStreams,
+    hourProfile,
+    dowProfile,
+  ] = await Promise.all([
       supabase.rpc("analytics_headline", { p_days: days, p_platform: platform, p_game: game }),
       supabase.rpc("daily_activity", { p_days: days, p_platform: platform, p_game: game }),
       supabase.rpc("hour_heatmap", { p_days: days, p_platform: platform, p_game: game }),
@@ -37,6 +46,13 @@ export async function GET(request: Request) {
         p_platform: platform,
         p_game: game,
       }),
+      // 時間帯マップの曜日表示用（対象chの選び方は channel_hour_profile と同一）
+      supabase.rpc("channel_dow_profile", {
+        p_days: days,
+        p_limit: 10,
+        p_platform: platform,
+        p_game: game,
+      }),
     ]);
 
   const firstError =
@@ -47,7 +63,8 @@ export async function GET(request: Request) {
     leaderboard.error ||
     growth.error ||
     topStreams.error ||
-    hourProfile.error;
+    hourProfile.error ||
+    dowProfile.error;
   if (firstError) {
     // エンリッチ系テーブル未作成でも、他パネルは返せるよう握りつぶさず明示する。
     console.error("[insights] rpc error:", firstError.message);
@@ -65,6 +82,7 @@ export async function GET(request: Request) {
     growth: growth.data ?? [],
     top_streams: topStreams.data ?? [],
     hour_profile: hourProfile.data ?? [],
+    dow_profile: dowProfile.data ?? [],
     error: firstError?.message ?? null,
   });
 }

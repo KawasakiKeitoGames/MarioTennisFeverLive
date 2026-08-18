@@ -13,6 +13,7 @@ function clamp(v: unknown, max: number): string | null {
 
 // 公開エンドポイント。匿名から呼ばれ、service_role で events に1行だけ記録する。
 // 受理フィールドは限定し、IP/User-Agent など個人情報は保存しない。
+// 国はVercelが付与する x-vercel-ip-country ヘッダー（2文字コード）のみ保存し、IPは保存しない。
 export async function POST(request: Request) {
   let payload: Record<string, unknown>;
   try {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     channel_name: type === "click" ? clamp(payload.channel_name, 300) : null,
     target_url: type === "click" ? clamp(payload.target_url, 500) : null,
     visitor: clamp(payload.visitor, 64),
+    country: clamp(request.headers.get("x-vercel-ip-country"), 2)?.toUpperCase() ?? null,
   };
 
   try {

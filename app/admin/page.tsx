@@ -55,6 +55,22 @@ function dayMd(ymd: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
+// 国コード(ISO 3166-1 alpha-2)→国旗絵文字。不明('??'等)は🌐。
+function flagEmoji(cc: string): string {
+  if (!/^[A-Z]{2}$/.test(cc)) return "🌐";
+  return String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
+// countries jsonb（国コード→クリック数）を多い順の配列に。'??'（記録前・不明）は末尾。
+function sortCountries(countries: Record<string, number> | null): [string, number][] {
+  if (!countries) return [];
+  return Object.entries(countries).sort((a, b) => {
+    if (a[0] === "??") return 1;
+    if (b[0] === "??") return -1;
+    return b[1] - a[1];
+  });
+}
+
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm">
@@ -95,6 +111,7 @@ export default async function AdminPage({
     viewDailyRes,
     clickDailyRes,
     topClickedRes,
+    clickCountriesRes,
     pathViewsRes,
     referrersRes,
     channelsRes,
@@ -128,6 +145,7 @@ export default async function AdminPage({
     supabase.rpc("events_daily", { p_days: days, p_type: "view" }),
     supabase.rpc("events_daily", { p_days: days, p_type: "click" }),
     supabase.rpc("top_clicked", { p_days: days, p_limit: 20 }),
+    supabase.rpc("click_countries", { p_days: days }),
     supabase.rpc("path_views", { p_days: days }),
     supabase.rpc("top_referrers", { p_days: days, p_limit: 15 }),
     supabase.rpc("channel_appearances", { p_limit: 30 }),
@@ -195,7 +213,9 @@ export default async function AdminPage({
     channel_name: string;
     platform: string;
     clicks: number;
+    countries: Record<string, number> | null;
   }[];
+  const clickCountries = (clickCountriesRes.data ?? []) as { country: string; clicks: number }[];
   const pathViews = (pathViewsRes.data ?? []) as { path: string; count: number }[];
   const referrers = (referrersRes.data ?? []) as { referrer_host: string; count: number }[];
   const channels = (channelsRes.data ?? []) as {
@@ -395,25 +415,61 @@ export default async function AdminPage({
             {topClicked.length === 0 ? (
               <p className="text-xs text-slate-400">まだクリックがありません。</p>
             ) : (
-              <ol className="space-y-1.5">
-                {topClicked.map((c, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm">
-                    <span className="w-5 shrink-0 text-right text-xs font-bold text-slate-400">{i + 1}</span>
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        c.platform === "twitch" ? "bg-twitch" : "bg-youtube"
-                      }`}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-slate-700">{c.channel_name}</span>
-                    <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(c.clicks)}</span>
-                  </li>
-                ))}
+              <ol className="space-y-2">
+                {topClicked.map((c, i) => {
+                  const cc = sortCountries(c.countries);
+                  return (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <span className="w-5 shrink-0 pt-0.5 text-right text-xs font-bold text-slate-400">{i + 1}</span>
+                      <span
+                        className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                          c.platform === "twitch" ? "bg-twitch" : "bg-youtube"
+                        }`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-slate-700">{c.channel_name}</span>
+                        {cc.length > 0 && (
+                          <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400">
+                            {cc.slice(0, 5).map(([code, n]) => (
+                              <span key={code}>
+                                {flagEmoji(code)} {code === "??" ? "不明" : code}
+                                <span className="ml-0.5 tabular-nums">{n}</span>
+                              </span>
+                            ))}
+                            {cc.length > 5 && <span>ほか{cc.length - 5}カ国</span>}
+                          </span>
+                        )}
+                      </span>
+                      <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(c.clicks)}</span>
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </div>
 
-          {/* 流入元・パス別 */}
+          {/* 流入元・国別・パス別 */}
           <div className="space-y-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-2 text-xs font-black text-slate-700">クリックの国別内訳</div>
+              {clickCountries.length === 0 ? (
+                <p className="text-xs text-slate-400">まだクリックがありません。</p>
+              ) : (
+                <ul className="space-y-1">
+                  {clickCountries.map((r) => (
+                    <li key={r.country} className="flex items-center justify-between text-sm">
+                      <span className="min-w-0 flex-1 truncate text-slate-600">
+                        {flagEmoji(r.country)} {r.country === "??" ? "不明（記録開始前など）" : r.country}
+                      </span>
+                      <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(r.clicks)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-400">
+                国はVercelのIP推定ヘッダー由来（国コードのみ保存・IPは保存しません）。機能追加前のクリックは「不明」になります。
+              </p>
+            </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-2 text-xs font-black text-slate-700">流入元（リファラ）</div>
               {referrers.length === 0 ? (
@@ -617,7 +673,7 @@ export default async function AdminPage({
       </section>
 
       <p className="mb-6 text-[11px] leading-relaxed text-slate-400">
-        アクセス解析はIP・個人情報を保存していません（端末ローカルの匿名トークンで集計）。この画面は管理者専用です。
+        アクセス解析はIP・個人情報を保存していません（端末ローカルの匿名トークンと、IP推定の国コードのみで集計）。この画面は管理者専用です。
       </p>
     </main>
   );

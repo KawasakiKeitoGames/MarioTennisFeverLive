@@ -57,6 +57,11 @@ interface HourProfileRow {
   hour: number;
   hours_count: number;
 }
+interface DowProfileRow {
+  channel_id: string;
+  dow: number;
+  hours_count: number;
+}
 interface NewChannel {
   channel_id: string;
   channel_name: string;
@@ -65,6 +70,7 @@ interface NewChannel {
   appearances: number;
 }
 interface LeaderRow {
+  channel_id: string;
   channel_name: string;
   platform: string;
   stream_hours: number;
@@ -88,6 +94,7 @@ interface InsightsData {
   activity: ActivityRow[];
   heatmap: HeatRow[];
   hour_profile: HourProfileRow[];
+  dow_profile: DowProfileRow[];
   new_channels: NewChannel[];
   leaderboard: LeaderRow[];
   growth: Growth[];
@@ -136,9 +143,47 @@ function dt(iso: string | null, lang: Lang = "ja"): string {
 function pfDot(platform: string): string {
   return platform === "twitch" ? "bg-twitch" : "bg-youtube";
 }
+// チャンネルページのURL（Twitchのchannel_idはlogin、YouTubeはUC…のチャンネルID）
+function channelUrl(platform: string, channelId: string): string {
+  return platform === "twitch"
+    ? `https://www.twitch.tv/${channelId}`
+    : `https://www.youtube.com/channel/${channelId}`;
+}
+// 配信ハイライトのリンク先。YouTubeのurlは動画(watch?v=)そのもの。
+// TwitchのurlはチャンネルページなのでVOD一覧(/videos)に飛ばす（動画IDは未収集のため個別VOD指定は不可）。
+function highlightUrl(s: HighlightStream): string | null {
+  if (!s.url) return null;
+  return s.platform === "twitch" ? `${s.url.replace(/\/$/, "")}/videos` : s.url;
+}
 // 時間帯マップのセル色（PF色の濃淡で表す）
 function pfRgb(platform: string): string {
   return platform === "twitch" ? "145,70,255" : "230,33,23";
+}
+
+// 折りたたみ切替ボタン（縦長になりがちなリストを既定は上位だけに抑える）
+function ShowMore({
+  open,
+  hidden,
+  onToggle,
+  labelAll,
+  labelLess,
+}: {
+  open: boolean;
+  hidden: number;
+  onToggle: () => void;
+  labelAll: string;
+  labelLess: string;
+}) {
+  if (hidden <= 0 && !open) return null;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="mt-2.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+    >
+      {open ? labelLess : `${labelAll} (+${hidden})`}
+    </button>
+  );
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -245,17 +290,31 @@ export default function AnalyticsPage() {
     return { start: bestStart, endHour, endLabel, dayType, byHour, hourMax };
   }, [d]);
 
-  // 配信者ごとの時間帯プロファイル（JSTの時×配信時間h）。よく配信する連続3時間帯も導く。
+  // 配信者ごとの時間帯プロファイル（JSTの時×配信時間h）。よく配信する連続3時間帯と曜日傾向も導く。
   const channelHours = useMemo(() => {
+    // 曜日プロファイル（channel_id→[日..土]の配信時間h）
+    const dowByCh = new Map<string, number[]>();
+    for (const r of d?.dow_profile ?? []) {
+      const arr = dowByCh.get(r.channel_id) ?? new Array(7).fill(0);
+      arr[r.dow] += r.hours_count;
+      dowByCh.set(r.channel_id, arr);
+    }
     const byCh = new Map<
       string,
-      { id: string; name: string; platform: string; hours: number[]; total: number }
+      { id: string; rawId: string; name: string; platform: string; hours: number[]; total: number }
     >();
     for (const r of d?.hour_profile ?? []) {
       const key = `${r.platform}:${r.channel_id}`;
       const c =
         byCh.get(key) ??
-        { id: key, name: r.channel_name, platform: r.platform, hours: new Array(24).fill(0), total: 0 };
+        {
+          id: key,
+          rawId: r.channel_id,
+          name: r.channel_name,
+          platform: r.platform,
+          hours: new Array(24).fill(0),
+          total: 0,
+        };
       c.hours[r.hour] += r.hours_count;
       c.total += r.hours_count;
       byCh.set(key, c);
@@ -263,6 +322,8 @@ export default function AnalyticsPage() {
     return [...byCh.values()]
       .sort((a, b) => b.total - a.total)
       .map((c) => {
+        const dows = dowByCh.get(c.rawId) ?? new Array(7).fill(0);
+        const dowMax = Math.max(...dows, 1);
         const max = Math.max(...c.hours, 1);
         // もっとも配信が多い連続3時間帯（日またぎも考慮）
         let bestStart = 0;
@@ -275,9 +336,15 @@ export default function AnalyticsPage() {
           }
         }
         const endLabel = bestStart + 3 <= 24 ? bestStart + 3 : bestStart + 3 - 24; // 21〜24時 のように読ませる
-        return { ...c, max, bestStart, endLabel };
+        return { ...c, max, bestStart, endLabel, dows, dowMax };
       });
   }, [d]);
+
+  // 折りたたみ（既定は上位だけ表示して縦長を防ぐ）
+  const [lbOpen, setLbOpen] = useState(false);
+  const [ncOpen, setNcOpen] = useState(false);
+  const [grOpen, setGrOpen] = useState(false);
+  const COLLAPSED = 8;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
@@ -441,7 +508,9 @@ export default function AnalyticsPage() {
           {/* 配信ハイライト（記録） */}
           <section className="mt-6">
             <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.highlights")}</h2>
-            <p className="mb-2 text-[11px] text-slate-400">{t("an.highlightsDesc")}</p>
+            <p className="mb-2 text-[11px] text-slate-400">
+              {t("an.highlightsDesc")} {t("an.highlightsLinkNote")}
+            </p>
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               {(d?.top_streams ?? []).length === 0 ? (
                 <p className="text-xs text-slate-400">{t("an.highlightsEmpty")}</p>
@@ -481,11 +550,12 @@ export default function AnalyticsPage() {
                         </div>
                       </>
                     );
+                    const href = highlightUrl(s);
                     return (
                       <li key={s.stream_id}>
-                        {s.url ? (
+                        {href ? (
                           <a
-                            href={s.url}
+                            href={href}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-sm transition-colors hover:bg-slate-50"
@@ -662,8 +732,8 @@ export default function AnalyticsPage() {
               <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.chMap")}</h2>
               <p className="mb-2 text-[11px] text-slate-400">{t("an.chMapDesc")}</p>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-                <div className="min-w-[560px]">
-                  {/* 時間軸ヘッダ */}
+                <div className="min-w-[660px]">
+                  {/* 時間軸＋曜日ヘッダ */}
                   <div className="mb-1 flex items-center">
                     <div className="w-24 shrink-0" />
                     <div className="flex flex-1">
@@ -673,15 +743,28 @@ export default function AnalyticsPage() {
                         </div>
                       ))}
                     </div>
+                    <div className="ml-2 flex w-[84px] shrink-0 border-l border-slate-100 pl-1.5">
+                      {DOW_ORDER.map((dw) => (
+                        <div key={dw} className="flex-1 text-center text-[8px] text-slate-400">
+                          {DOW_LABEL[lang][dw]}
+                        </div>
+                      ))}
+                    </div>
                     <div className="w-16 shrink-0" />
                   </div>
                   {channelHours.map((c) => (
                     <div key={c.id} className="flex items-center py-[2px]">
                       <div className="flex w-24 shrink-0 items-center gap-1 pr-1">
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
-                        <span className="truncate text-[11px] text-slate-600" title={c.name}>
+                        <a
+                          href={channelUrl(c.platform, c.rawId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate text-[11px] text-slate-600 hover:text-brand hover:underline"
+                          title={c.name}
+                        >
                           {c.name}
-                        </span>
+                        </a>
                       </div>
                       <div className="flex flex-1">
                         {c.hours.map((v, h) => (
@@ -702,6 +785,30 @@ export default function AnalyticsPage() {
                             />
                           </div>
                         ))}
+                      </div>
+                      {/* 曜日別の配信量（濃いほどその曜日に配信が多い） */}
+                      <div className="ml-2 flex w-[84px] shrink-0 border-l border-slate-100 pl-1.5">
+                        {DOW_ORDER.map((dw) => {
+                          const v = c.dows[dw];
+                          return (
+                            <div key={dw} className="flex-1 px-[1px]">
+                              <div
+                                className="h-4 rounded-[3px]"
+                                title={
+                                  lang === "en"
+                                    ? `${c.name} ${DOW_LABEL.en[dw]} — ${v}h streamed`
+                                    : `${c.name} ${DOW_LABEL.ja[dw]}曜: 配信${v}h`
+                                }
+                                style={{
+                                  background:
+                                    v === 0
+                                      ? "#f1f5f9"
+                                      : `rgba(${pfRgb(c.platform)},${0.15 + (v / c.dowMax) * 0.85})`,
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                       <div
                         className="w-16 shrink-0 pl-1.5 text-right text-[10px] tabular-nums text-slate-400"
@@ -733,32 +840,48 @@ export default function AnalyticsPage() {
                 {(d?.leaderboard ?? []).length === 0 ? (
                   <p className="text-xs text-slate-400">{t("an.noDataYet")}</p>
                 ) : (
-                  <ol className="space-y-2.5">
-                    {(d?.leaderboard ?? []).map((c, i) => (
-                      <li key={i} className="flex items-center gap-2 text-sm">
-                        <span className="w-5 shrink-0 text-right text-xs font-bold text-slate-400">{i + 1}</span>
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-slate-700">{c.channel_name}</div>
-                          <div
-                            className="mt-0.5 h-1 rounded-full bg-brand"
-                            style={{ width: `${Math.round((c.viewer_hours / maxLeader) * 100)}%` }}
-                          />
-                          <div className="mt-0.5 text-[10px] text-slate-400">
-                            {lang === "en"
-                              ? `${fmt(c.stream_hours)}h streamed · peak ${fmt(c.peak_viewers)}`
-                              : `配信${fmt(c.stream_hours)}h・ピーク${fmt(c.peak_viewers)}人`}
+                  <>
+                    <ol className="space-y-2.5">
+                      {(d?.leaderboard ?? []).slice(0, lbOpen ? undefined : COLLAPSED).map((c, i) => (
+                        <li key={i} className="flex items-center gap-2 text-sm">
+                          <span className="w-5 shrink-0 text-right text-xs font-bold text-slate-400">{i + 1}</span>
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
+                          <div className="min-w-0 flex-1">
+                            <a
+                              href={channelUrl(c.platform, c.channel_id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block truncate text-slate-700 hover:text-brand hover:underline"
+                            >
+                              {c.channel_name}
+                            </a>
+                            <div
+                              className="mt-0.5 h-1 rounded-full bg-brand"
+                              style={{ width: `${Math.round((c.viewer_hours / maxLeader) * 100)}%` }}
+                            />
+                            <div className="mt-0.5 text-[10px] text-slate-400">
+                              {lang === "en"
+                                ? `${fmt(c.stream_hours)}h streamed · peak ${fmt(c.peak_viewers)}`
+                                : `配信${fmt(c.stream_hours)}h・ピーク${fmt(c.peak_viewers)}人`}
+                            </div>
                           </div>
-                        </div>
-                        <span className="shrink-0 text-right font-bold tabular-nums text-slate-900">
-                          {fmt(c.viewer_hours)}
-                          <span className="ml-0.5 text-[10px] font-normal text-slate-400">
-                            {t("an.viewerHours")}
+                          <span className="shrink-0 text-right font-bold tabular-nums text-slate-900">
+                            {fmt(c.viewer_hours)}
+                            <span className="ml-0.5 text-[10px] font-normal text-slate-400">
+                              {t("an.viewerHours")}
+                            </span>
                           </span>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
+                        </li>
+                      ))}
+                    </ol>
+                    <ShowMore
+                      open={lbOpen}
+                      hidden={Math.max(0, (d?.leaderboard ?? []).length - COLLAPSED)}
+                      onToggle={() => setLbOpen((v) => !v)}
+                      labelAll={t("an.showAll")}
+                      labelLess={t("an.showLess")}
+                    />
+                  </>
                 )}
               </div>
             </section>
@@ -770,21 +893,37 @@ export default function AnalyticsPage() {
                 {(d?.new_channels ?? []).length === 0 ? (
                   <p className="text-xs text-slate-400">{t("an.newcomersEmpty")}</p>
                 ) : (
-                  <ul className="space-y-2.5">
-                    {(d?.new_channels ?? []).slice(0, 12).map((c) => (
-                      <li key={c.channel_id} className="flex items-center gap-2.5 text-sm">
-                        <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${pfDot(c.platform)}`}>
-                          {c.channel_name.charAt(0)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-slate-700">{c.channel_name}</div>
-                          <div className="text-[11px] text-slate-400">
-                            {t("an.firstSeen")} {dt(c.first_seen, lang)}
+                  <>
+                    <ul className="grid grid-cols-1 gap-x-3 gap-y-2 min-[420px]:grid-cols-2">
+                      {(d?.new_channels ?? []).slice(0, ncOpen ? undefined : COLLAPSED).map((c) => (
+                        <li key={c.channel_id} className="flex items-center gap-2 text-sm">
+                          <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${pfDot(c.platform)}`}>
+                            {c.channel_name.charAt(0)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <a
+                              href={channelUrl(c.platform, c.channel_id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block truncate text-xs text-slate-700 hover:text-brand hover:underline"
+                            >
+                              {c.channel_name}
+                            </a>
+                            <div className="text-[10px] text-slate-400">
+                              {t("an.firstSeen")} {dt(c.first_seen, lang)}
+                            </div>
                           </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                        </li>
+                      ))}
+                    </ul>
+                    <ShowMore
+                      open={ncOpen}
+                      hidden={Math.max(0, (d?.new_channels ?? []).length - COLLAPSED)}
+                      onToggle={() => setNcOpen((v) => !v)}
+                      labelAll={t("an.showAll")}
+                      labelLess={t("an.showLess")}
+                    />
+                  </>
                 )}
               </div>
             </section>
@@ -808,9 +947,19 @@ export default function AnalyticsPage() {
                   <tbody>
                     {(d?.growth ?? [])
                       .filter((g) => g.delta != null)
+                      .slice(0, grOpen ? undefined : COLLAPSED)
                       .map((g) => (
                         <tr key={g.channel_id} className="border-b border-slate-50 last:border-0">
-                          <td className="px-4 py-2 text-slate-700">{g.channel_name}</td>
+                          <td className="px-4 py-2 text-slate-700">
+                            <a
+                              href={channelUrl("youtube", g.channel_id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-brand hover:underline"
+                            >
+                              {g.channel_name}
+                            </a>
+                          </td>
                           <td className="px-4 py-2 tabular-nums text-slate-700">{fmt(g.latest_subs)}</td>
                           <td className={`px-4 py-2 font-bold tabular-nums ${(g.delta ?? 0) > 0 ? "text-brand" : "text-slate-400"}`}>
                             {(g.delta ?? 0) > 0 ? "+" : ""}
@@ -824,6 +973,16 @@ export default function AnalyticsPage() {
                   </tbody>
                 </table>
               </div>
+              <ShowMore
+                open={grOpen}
+                hidden={Math.max(
+                  0,
+                  (d?.growth ?? []).filter((g) => g.delta != null).length - COLLAPSED,
+                )}
+                onToggle={() => setGrOpen((v) => !v)}
+                labelAll={t("an.showAll")}
+                labelLess={t("an.showLess")}
+              />
             </section>
           )}
 
