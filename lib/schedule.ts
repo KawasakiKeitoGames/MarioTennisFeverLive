@@ -24,7 +24,7 @@ export const YT_SCHEDULE: ScheduleBand[] = [
 ];
 
 export const YT_DAILY_CAPTURES = YT_SCHEDULE.reduce((s, b) => s + b.count, 0);
-export const YT_UNITS_PER_CAPTURE = 101; // search.list 1ページ(100) + videos.list(1)
+export const YT_UNITS_PER_CAPTURE = 102; // search.list 1ページ(100) + videos.list(1) + 取りこぼし補完のvideos.list(0〜2)
 export const YT_DAILY_QUOTA = 10000; // YouTube Data API の1日上限
 export const TW_EXPECTED_MIN = 2; // Twitch は終日2分間隔（mtf-collect-twitch）
 
