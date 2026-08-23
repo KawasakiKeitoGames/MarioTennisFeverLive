@@ -23,6 +23,7 @@ const DICT = {
   "nav.analytics": { ja: "📊 ランキング・記録 →", en: "📊 Rankings & Records →" },
   "nav.history": { ja: "📈 推移 →", en: "📈 Trends →" },
   "nav.streamers": { ja: "🔍 配信者検索 →", en: "🔍 Find streamers →" },
+  "nav.about": { ja: "ℹ️ このアプリについて", en: "ℹ️ About this app" },
 
   // 配信者検索・詳細
   "st.title": { ja: "配信者検索", en: "Streamer Search" },
@@ -225,6 +226,59 @@ const DICT = {
     ja: "集計は保存済みデータのみを用い、閲覧時に外部APIは呼び出しません。",
     en: "Aggregations use stored data only; no external APIs are called while viewing.",
   },
+
+  // このアプリについて
+  "about.overviewH": { ja: "アプリの概要", en: "Overview" },
+  "about.overview": {
+    ja: "FEVER LIVE は、いまマリオテニスを配信している YouTube・Twitch のチャンネルを横断で一覧表示する、非公式のファン制作サイトです。配信中のチャンネルをまとめて確認できるほか、視聴者数の推移や配信者ごとの記録もふり返れます。",
+    en: "FEVER LIVE is an unofficial fan-made site that shows which YouTube and Twitch channels are streaming Mario Tennis right now, across both platforms. You can also look back on viewer trends and per-streamer records.",
+  },
+  "about.gamesH": { ja: "対応タイトル", en: "Supported games" },
+  "about.games": {
+    ja: "マリオテニスフィーバー / マリオテニス エース / マリオテニス64 に対応しています。トップのタブでタイトルごとに絞り込めます。",
+    en: "Mario Tennis Fever, Mario Tennis Aces, and Mario Tennis 64 are supported. Use the tabs on the top page to filter by title.",
+  },
+  "about.featuresH": { ja: "主な機能", en: "Main features" },
+  "about.f1": {
+    ja: "ライブボード：いま配信中のチャンネルを視聴者数・名前・経過時間で並べ替えて一覧",
+    en: "Live board: see who is streaming now, sortable by viewers, name, or uptime",
+  },
+  "about.f2": {
+    ja: "推移：総同時視聴者数のうごきと、どのチャンネルがいつ配信していたかのタイムライン",
+    en: "Trends: total concurrent viewers over time, plus a timeline of who streamed when",
+  },
+  "about.f3": {
+    ja: "ランキング・記録：配信ハイライト、配信者ランキング、時間帯ヒートマップ、登録者の伸び",
+    en: "Rankings & records: stream highlights, streamer leaderboard, hour-of-day heatmap, and subscriber growth",
+  },
+  "about.f4": {
+    ja: "配信者検索：チャンネルごとの配信傾向（時間帯・曜日）や直近の配信を確認",
+    en: "Streamer search: each channel's streaming patterns (hours, days) and recent streams",
+  },
+  "about.f5": {
+    ja: "日本語 / English の切り替え、ダークテーマ、ホーム画面への追加（PWA）",
+    en: "Japanese / English toggle, dark theme, and add-to-home-screen (PWA)",
+  },
+  "about.dataH": { ja: "データについて", en: "About the data" },
+  "about.data": {
+    ja: "配信情報は本サイトが定期的に収集したスナップショットに基づいています（Twitch は約2分ごと、YouTube は時間帯により約5〜60分ごと）。視聴者数などの数値は収集時点の値をもとにした推定を含みます。ページの閲覧中に外部APIを呼び出すことはありません。",
+    en: "Stream data is based on snapshots this site collects periodically (Twitch about every 2 minutes; YouTube every 5–60 minutes depending on the time of day). Figures such as viewer counts include estimates based on those snapshots. No external APIs are called while you browse.",
+  },
+  "about.creatorH": { ja: "作成者", en: "Creator" },
+  "about.creator": {
+    ja: "ガメス が個人で開発・運営しています。",
+    en: "Developed and run individually by Games.",
+  },
+  "about.contactH": { ja: "お問い合わせ", en: "Contact" },
+  "about.contact": {
+    ja: "ご意見・ご要望・不具合のご報告などは、ガメスのX（旧Twitter）のDMまでお気軽にご連絡ください。Xのアカウントは下のリンクまとめページから開けます。",
+    en: "For feedback, requests, or bug reports, feel free to reach out via DM to Games on X (formerly Twitter). You can open the X account from the links page below.",
+  },
+  "about.links": {
+    ja: "🔗 ガメスのリンクまとめ（X・配信など）",
+    en: "🔗 Games — links (X, streams, and more)",
+  },
+  "about.updated": { ja: "最終更新日：2026年8月", en: "Last updated: August 2026" },
 
   // テーマ切替
   "theme.toLight": { ja: "ライトテーマに切り替え", en: "Switch to light theme" },

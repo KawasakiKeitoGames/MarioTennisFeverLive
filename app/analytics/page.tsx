@@ -998,6 +998,12 @@ export default function AnalyticsPage() {
             {lang === "ja" ? "" : " "}
             {t("an.footer")}
           </p>
+          <Link
+            href="/about"
+            className="mt-2 inline-block text-xs font-bold text-slate-500 underline underline-offset-2 transition-colors hover:text-brand"
+          >
+            {t("nav.about")}
+          </Link>
         </>
       )}
     </main>

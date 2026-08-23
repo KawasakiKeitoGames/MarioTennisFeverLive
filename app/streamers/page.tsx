@@ -145,6 +145,12 @@ export default function StreamersPage() {
       <p className="mt-6 border-t border-slate-200 pt-4 text-xs leading-relaxed text-slate-400">
         {t("common.disclaimerShort")}
       </p>
+      <Link
+        href="/about"
+        className="mt-2 inline-block text-xs font-bold text-slate-500 underline underline-offset-2 transition-colors hover:text-brand"
+      >
+        {t("nav.about")}
+      </Link>
     </main>
   );
 }

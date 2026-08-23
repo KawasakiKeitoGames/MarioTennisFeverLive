@@ -384,6 +384,12 @@ export default function Home() {
           <p className="mt-2 text-slate-400">{t("home.viewersNote")}</p>
         </div>
         <p className="text-xs leading-relaxed text-slate-500">{t("common.disclaimer")}</p>
+        <Link
+          href="/about"
+          className="inline-block text-xs font-bold text-slate-500 underline underline-offset-2 transition-colors hover:text-brand"
+        >
+          {t("nav.about")}
+        </Link>
       </footer>
     </main>
   );

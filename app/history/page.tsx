@@ -266,6 +266,12 @@ export default function HistoryPage() {
 
       <p className="mt-4 px-1 text-xs text-slate-400">{t("hist.note")}</p>
       <p className="mt-2 px-1 text-xs text-slate-400">{t("common.disclaimerShort")}</p>
+      <Link
+        href="/about"
+        className="mt-2 inline-block px-1 text-xs font-bold text-slate-500 underline underline-offset-2 transition-colors hover:text-brand"
+      >
+        {t("nav.about")}
+      </Link>
     </main>
   );
 }
