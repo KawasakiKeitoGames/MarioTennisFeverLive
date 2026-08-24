@@ -62,6 +62,8 @@ export async function fetchTwitchLive(
     if (!res.ok) throw new Error(`Twitch streams: ${res.status} ${await res.text()}`);
     const data = (await res.json()) as {
       data?: Array<{
+        id?: string;
+        started_at?: string;
         user_name?: string;
         user_login?: string;
         game_id?: string;
@@ -80,7 +82,10 @@ export async function fetchTwitchLive(
         game,
         channelId: login,
         channelName: s.user_name ?? login,
-        streamId: login,
+        // Twitchの配信ごとのユニークID。以前は login を入れていたため同一chの別配信が
+        // 1本に潰れ、配信本数が数えられなかった（2026-08-24修正）。取れない場合のみ login。
+        streamId: s.id ?? login,
+        startedAt: s.started_at ?? null,
         title: s.title ?? "",
         viewers: s.viewer_count ?? 0,
         language: s.language ?? "",

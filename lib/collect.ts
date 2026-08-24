@@ -42,6 +42,7 @@ async function saveCapture(
       channel_id: s.channelId,
       channel_name: s.channelName,
       stream_id: s.streamId,
+      stream_started_at: s.startedAt ?? null,
       title: s.title,
       viewers: s.viewers,
       language: s.language,
