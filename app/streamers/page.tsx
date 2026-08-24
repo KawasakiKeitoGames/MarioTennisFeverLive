@@ -14,6 +14,7 @@ interface SearchRow {
   last_seen: string;
   stream_hours: number;
   peak_viewers: number;
+  thumbnail_url: string | null;
 }
 
 function relativeTime(iso: string | null, lang: Lang): string {
@@ -113,13 +114,22 @@ export default function StreamersPage() {
                 href={`/streamers/${r.platform}/${encodeURIComponent(r.channel_id)}`}
                 className="flex items-center gap-3 p-3 transition-colors hover:bg-slate-50"
               >
-                <span
-                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${
-                    r.platform === "twitch" ? "bg-twitch" : "bg-youtube"
-                  }`}
-                >
-                  {r.channel_name.charAt(0)}
-                </span>
+                {r.thumbnail_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={r.thumbnail_url}
+                    alt=""
+                    className="h-9 w-9 shrink-0 rounded-full border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <span
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${
+                      r.platform === "twitch" ? "bg-twitch" : "bg-youtube"
+                    }`}
+                  >
+                    {r.channel_name.charAt(0)}
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-bold text-slate-800">{r.channel_name}</div>
                   <div className="mt-0.5 text-[11px] text-slate-400">
