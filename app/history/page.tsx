@@ -31,7 +31,7 @@ const RANGES = [
   { ja: "30日", en: "30d", hours: 720 },
 ];
 const PLATFORMS: { key: Platform; label: string | null }[] = [
-  { key: "all", label: null }, // null＝翻訳（hist.combined）を使う
+  { key: "all", label: null }, // null＝翻訳（common.all＝「すべて」）を使う
   { key: "youtube", label: "YouTube" },
   { key: "twitch", label: "Twitch" },
 ];
@@ -175,7 +175,7 @@ export default function HistoryPage() {
                   : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
               }`}
             >
-              {p.label ?? t("hist.combined")}
+              {p.label ?? t("common.all")}
             </button>
           ))}
         </div>

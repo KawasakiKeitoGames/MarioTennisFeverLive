@@ -24,8 +24,7 @@ export async function GET(request: Request) {
     leaderboard,
     growth,
     topStreams,
-    hourProfile,
-    dowProfile,
+    pageRanking,
   ] = await Promise.all([
       supabase.rpc("analytics_headline", { p_days: days, p_platform: platform, p_game: game }),
       supabase.rpc("daily_activity", { p_days: days, p_platform: platform, p_game: game }),
@@ -40,18 +39,11 @@ export async function GET(request: Request) {
       // channel_growth は登録者数（チャンネル単位のエンリッチ情報）なのでタイトル絞り込み対象外
       supabase.rpc("channel_growth", { p_days: days, p_limit: 20 }),
       supabase.rpc("top_streams", { p_days: days, p_limit: 6, p_platform: platform, p_game: game }),
-      supabase.rpc("channel_hour_profile", {
+      // 配信者ページの閲覧ランキング。閲覧ログはタイトル別に持てないので p_game 非対応
+      supabase.rpc("streamer_page_ranking", {
         p_days: days,
-        p_limit: 10,
+        p_limit: 20,
         p_platform: platform,
-        p_game: game,
-      }),
-      // 時間帯マップの曜日表示用（対象chの選び方は channel_hour_profile と同一）
-      supabase.rpc("channel_dow_profile", {
-        p_days: days,
-        p_limit: 10,
-        p_platform: platform,
-        p_game: game,
       }),
     ]);
 
@@ -63,8 +55,7 @@ export async function GET(request: Request) {
     leaderboard.error ||
     growth.error ||
     topStreams.error ||
-    hourProfile.error ||
-    dowProfile.error;
+    pageRanking.error;
   if (firstError) {
     // エンリッチ系テーブル未作成でも、他パネルは返せるよう握りつぶさず明示する。
     console.error("[insights] rpc error:", firstError.message);
@@ -81,8 +72,7 @@ export async function GET(request: Request) {
     leaderboard: leaderboard.data ?? [],
     growth: growth.data ?? [],
     top_streams: topStreams.data ?? [],
-    hour_profile: hourProfile.data ?? [],
-    dow_profile: dowProfile.data ?? [],
+    page_ranking: pageRanking.data ?? [],
     error: firstError?.message ?? null,
   });
 }

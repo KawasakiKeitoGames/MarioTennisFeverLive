@@ -46,23 +46,23 @@ interface HighlightStream {
   started_at: string | null;
   title: string | null;
   url: string | null;
+  thumbnail_url: string | null;
 }
 interface HeatRow {
   dow: number;
   hour: number;
   avg_concurrent: number;
 }
-interface HourProfileRow {
+// 配信者ページ（/streamers/{pf}/{id}）の閲覧ランキング
+interface PageRankRow {
+  platform: string;
   channel_id: string;
   channel_name: string;
-  platform: string;
-  hour: number;
-  hours_count: number;
-}
-interface DowProfileRow {
-  channel_id: string;
-  dow: number;
-  hours_count: number;
+  views: number;
+  uniques: number;
+  thumbnail_url: string | null;
+  rank: number | null;
+  prev_rank: number | null; // 直前の同じ長さの期間での順位（無ければnull）
 }
 interface NewChannel {
   channel_id: string;
@@ -80,6 +80,8 @@ interface LeaderRow {
   peak_viewers: number;
   avg_viewers: number | null;
   last_seen: string;
+  rank: number | null;
+  prev_rank: number | null;
 }
 interface Growth {
   channel_id: string;
@@ -89,18 +91,19 @@ interface Growth {
   delta: number | null;
   growth_pct: number | null;
   published_at: string | null;
+  rank: number | null;
+  prev_rank: number | null;
 }
 
 interface InsightsData {
   headline: Headline | null;
   activity: ActivityRow[];
   heatmap: HeatRow[];
-  hour_profile: HourProfileRow[];
-  dow_profile: DowProfileRow[];
   new_channels: NewChannel[];
   leaderboard: LeaderRow[];
   growth: Growth[];
   top_streams: HighlightStream[];
+  page_ranking: PageRankRow[];
 }
 
 const PERIODS = [
@@ -155,9 +158,80 @@ function highlightUrl(s: HighlightStream): string | null {
   if (!s.url) return null;
   return s.platform === "twitch" ? `${s.url.replace(/\/$/, "")}/videos` : s.url;
 }
-// 時間帯マップのセル色（PF色の濃淡で表す）
-function pfRgb(platform: string): string {
-  return platform === "twitch" ? "145,70,255" : "230,33,23";
+// チャンネルアイコン。画像が無いときは頭文字＋PF色の丸で代替し、
+// 右下の小さなドットで YouTube / Twitch のどちらかを示す。
+function ChannelIcon({
+  src,
+  name,
+  platform,
+  size = 32,
+}: {
+  src: string | null;
+  name: string;
+  platform: string;
+  size?: number;
+}) {
+  return (
+    <span className="relative shrink-0" style={{ width: size, height: size }}>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full rounded-full border border-slate-200 object-cover"
+        />
+      ) : (
+        <span
+          className={`grid h-full w-full place-items-center rounded-full text-[11px] font-bold text-white ${pfDot(platform)}`}
+        >
+          {name.charAt(0)}
+        </span>
+      )}
+      <span
+        title={platform === "twitch" ? "Twitch" : "YouTube"}
+        className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white ${pfDot(platform)}`}
+      />
+    </span>
+  );
+}
+
+// 直前の同じ長さの期間と比べた順位の変動（▲上昇 / ▼下降 / →横ばい / NEW＝前期間はランク外）。
+// 前期間のデータが1件も無いリストでは呼び出し側で丸ごと非表示にする。
+function RankDelta({ rank, prevRank }: { rank: number | null; prevRank: number | null }) {
+  const { lang } = useLang();
+  const ja = lang === "ja";
+  if (rank == null) return null;
+  if (prevRank == null) {
+    return (
+      <span
+        title={ja ? "前の期間はランク外" : "Not ranked in the previous period"}
+        className="block text-[9px] font-bold leading-none text-brand"
+      >
+        NEW
+      </span>
+    );
+  }
+  const diff = prevRank - rank;
+  const title = ja
+    ? `前の同じ長さの期間: ${prevRank}位`
+    : `Previous period of the same length: #${prevRank}`;
+  if (diff === 0) {
+    return (
+      <span title={title} className="block text-[9px] font-bold leading-none text-slate-300">
+        →
+      </span>
+    );
+  }
+  return (
+    <span
+      title={title}
+      className={`block text-[9px] font-bold leading-none tabular-nums ${
+        diff > 0 ? "text-emerald-600" : "text-amber-600"
+      }`}
+    >
+      {diff > 0 ? `▲${diff}` : `▼${-diff}`}
+    </span>
+  );
 }
 
 // 折りたたみ切替ボタン（縦長になりがちなリストを既定は上位だけに抑える）
@@ -185,6 +259,10 @@ function ShowMore({
     </button>
   );
 }
+
+// 2列並びのセクション用。sm以上では「見出し＋説明」と「カード」を親グリッドの行に
+// subgridで割り当て、説明文の行数が違ってもカードの上端が左右で揃うようにする。
+const COL_ALIGN = "sm:row-span-2 sm:grid sm:grid-rows-subgrid sm:items-start";
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -255,95 +333,19 @@ export default function AnalyticsPage() {
 
   const hasGrowth = (d?.growth ?? []).some((g) => g.delta != null && g.delta !== 0);
   const maxLeader = Math.max(1, ...(d?.leaderboard ?? []).map((c) => c.viewer_hours));
-
-  // ヒートマップ（曜日×時間の平均同時配信数）から「配信を見つけやすい時間帯」を導く。
-  const primeTime = useMemo(() => {
-    const rows = d?.heatmap ?? [];
-    if (rows.length === 0) return null;
-    const byHour = new Array(24).fill(0);
-    let weekend = 0;
-    let weekday = 0;
-    for (const r of rows) {
-      byHour[r.hour] += r.avg_concurrent;
-      if (r.dow === 0 || r.dow === 6) weekend += r.avg_concurrent;
-      else weekday += r.avg_concurrent;
-    }
-    const hourMax = Math.max(...byHour);
-    if (hourMax <= 0) return null;
-    // もっとも活発な連続3時間帯を探す
-    let bestStart = 0;
-    let bestSum = -1;
-    for (let h = 0; h < 24; h++) {
-      const sum = byHour[h] + byHour[(h + 1) % 24] + byHour[(h + 2) % 24];
-      if (sum > bestSum) {
-        bestSum = sum;
-        bestStart = h;
-      }
-    }
-    const wePerDay = weekend / 2;
-    const wdPerDay = weekday / 5;
-    // 表示はレンダー時に言語別へ変換するため、ここでは種別キーだけ持つ
-    const dayType: "weekend" | "weekday" | "daily" =
-      wePerDay > wdPerDay * 1.25 ? "weekend" : wdPerDay > wePerDay * 1.25 ? "weekday" : "daily";
-    const endHour = (bestStart + 3) % 24;
-    const endLabel = bestStart + 3 <= 24 ? bestStart + 3 : bestStart + 3 - 24; // 21〜24時 のように読ませる
-    return { start: bestStart, endHour, endLabel, dayType, byHour, hourMax };
-  }, [d]);
-
-  // 配信者ごとの時間帯プロファイル（JSTの時×配信時間h）。よく配信する連続3時間帯と曜日傾向も導く。
-  const channelHours = useMemo(() => {
-    // 曜日プロファイル（channel_id→[日..土]の配信時間h）
-    const dowByCh = new Map<string, number[]>();
-    for (const r of d?.dow_profile ?? []) {
-      const arr = dowByCh.get(r.channel_id) ?? new Array(7).fill(0);
-      arr[r.dow] += r.hours_count;
-      dowByCh.set(r.channel_id, arr);
-    }
-    const byCh = new Map<
-      string,
-      { id: string; rawId: string; name: string; platform: string; hours: number[]; total: number }
-    >();
-    for (const r of d?.hour_profile ?? []) {
-      const key = `${r.platform}:${r.channel_id}`;
-      const c =
-        byCh.get(key) ??
-        {
-          id: key,
-          rawId: r.channel_id,
-          name: r.channel_name,
-          platform: r.platform,
-          hours: new Array(24).fill(0),
-          total: 0,
-        };
-      c.hours[r.hour] += r.hours_count;
-      c.total += r.hours_count;
-      byCh.set(key, c);
-    }
-    return [...byCh.values()]
-      .sort((a, b) => b.total - a.total)
-      .map((c) => {
-        const dows = dowByCh.get(c.rawId) ?? new Array(7).fill(0);
-        const dowMax = Math.max(...dows, 1);
-        const max = Math.max(...c.hours, 1);
-        // もっとも配信が多い連続3時間帯（日またぎも考慮）
-        let bestStart = 0;
-        let bestSum = -1;
-        for (let h = 0; h < 24; h++) {
-          const sum = c.hours[h] + c.hours[(h + 1) % 24] + c.hours[(h + 2) % 24];
-          if (sum > bestSum) {
-            bestSum = sum;
-            bestStart = h;
-          }
-        }
-        const endLabel = bestStart + 3 <= 24 ? bestStart + 3 : bestStart + 3 - 24; // 21〜24時 のように読ませる
-        return { ...c, max, bestStart, endLabel, dows, dowMax };
-      });
-  }, [d]);
+  const maxPageUniq = Math.max(1, ...(d?.page_ranking ?? []).map((c) => c.uniques));
+  // 順位変動は「直前の同じ長さの期間」との比較。前の期間がデータ蓄積開始より前に
+  // はみ出すときは RPC 側が prev_rank を一律 null で返すので、ここで表示ごと消す。
+  // （出すと大半が「NEW」になり、実際より新顔だらけに見えてしまうため）
+  const lbDelta = (d?.leaderboard ?? []).some((c) => c.prev_rank != null);
+  const prDelta = (d?.page_ranking ?? []).some((c) => c.prev_rank != null);
+  const grDelta = (d?.growth ?? []).some((c) => c.prev_rank != null);
 
   // 折りたたみ（既定は上位だけ表示して縦長を防ぐ）
   const [lbOpen, setLbOpen] = useState(false);
   const [ncOpen, setNcOpen] = useState(false);
   const [grOpen, setGrOpen] = useState(false);
+  const [prOpen, setPrOpen] = useState(false);
   const COLLAPSED = 8;
 
   return (
@@ -538,7 +540,12 @@ export default function AnalyticsPage() {
                         >
                           {i + 1}
                         </span>
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(s.platform)}`} />
+                        <ChannelIcon
+                          src={s.thumbnail_url}
+                          name={s.channel_name}
+                          platform={s.platform}
+                          size={32}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-bold text-slate-700">{s.channel_name}</div>
                           <div className="truncate text-[11px] text-slate-400">
@@ -671,184 +678,17 @@ export default function AnalyticsPage() {
             </div>
           </section>
 
-          {/* 狙い目の時間帯（ヒートマップの要約インサイト・旧ハッシュタグ枠の差し替え） */}
-          {primeTime && (
-            <section className="mt-4">
-              <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4 shadow-sm">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-lg leading-none">🎯</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-bold text-slate-700">
-                      {lang === "en" ? (
-                        <>
-                          Best time to find streams:{" "}
-                          <span className="text-brand">
-                            {
-                              { weekend: "weekends", weekday: "weekdays", daily: "most days" }[
-                                primeTime.dayType
-                              ]
-                            }{" "}
-                            around {primeTime.start}:00–{primeTime.endLabel}:00 JST
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          配信を見つけやすいのは{" "}
-                          <span className="text-brand">
-                            {
-                              { weekend: "土日", weekday: "平日", daily: "ほぼ毎日" }[
-                                primeTime.dayType
-                              ]
-                            }
-                            の {primeTime.start}〜{primeTime.endLabel}時ごろ
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-slate-400">{t("an.primeSub")}</p>
-                    {/* 24時間ミニバー（緑=狙い目の3時間） */}
-                    <div className="mt-2 flex items-end gap-[2px]" style={{ height: 28 }}>
-                      {primeTime.byHour.map((v, h) => {
-                        const inBand =
-                          primeTime.start < primeTime.endHour
-                            ? h >= primeTime.start && h < primeTime.endHour
-                            : h >= primeTime.start || h < primeTime.endHour;
-                        const hgt = primeTime.hourMax > 0 ? Math.max(2, (v / primeTime.hourMax) * 28) : 2;
-                        return (
-                          <div
-                            key={h}
-                            title={
-                              lang === "en"
-                                ? `${h}:00 — avg ${Math.round(v * 10) / 10} streams`
-                                : `${h}時: 平均${Math.round(v * 10) / 10}配信`
-                            }
-                            className="flex-1 rounded-[1px]"
-                            style={{ height: hgt, background: inBand ? "#16a34a" : "#cbd5e1" }}
-                          />
-                        );
-                      })}
-                    </div>
-                    <div className="mt-1 flex justify-between text-[9px] text-slate-300">
-                      <span>{lang === "en" ? "0:00" : "0時"}</span>
-                      <span>6</span>
-                      <span>12</span>
-                      <span>18</span>
-                      <span>{lang === "en" ? "23:00" : "23時"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* 配信者の時間帯マップ（誰がどの時間帯に配信していることが多いか） */}
-          {channelHours.length > 0 && (
-            <section className="mt-6">
-              <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.chMap")}</h2>
-              <p className="mb-2 text-[11px] text-slate-400">{t("an.chMapDesc")}</p>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-                <div className="min-w-[660px]">
-                  {/* 時間軸＋曜日ヘッダ */}
-                  <div className="mb-1 flex items-center">
-                    <div className="w-24 shrink-0" />
-                    <div className="flex flex-1">
-                      {Array.from({ length: 24 }, (_, h) => (
-                        <div key={h} className="flex-1 text-center text-[9px] text-slate-400">
-                          {h % 3 === 0 ? h : ""}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="ml-2 flex w-[84px] shrink-0 border-l border-slate-100 pl-1.5">
-                      {DOW_ORDER.map((dw) => (
-                        <div key={dw} className="flex-1 text-center text-[8px] text-slate-400">
-                          {DOW_LABEL[lang][dw]}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="w-16 shrink-0" />
-                  </div>
-                  {channelHours.map((c) => (
-                    <div key={c.id} className="flex items-center py-[2px]">
-                      <div className="flex w-24 shrink-0 items-center gap-1 pr-1">
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
-                        <Link
-                          href={streamerPath(c.platform, c.rawId)}
-                          className="truncate text-[11px] text-slate-600 hover:text-brand hover:underline"
-                          title={c.name}
-                        >
-                          {c.name}
-                        </Link>
-                      </div>
-                      <div className="flex flex-1">
-                        {c.hours.map((v, h) => (
-                          <div key={h} className="flex-1 px-[1px]">
-                            <div
-                              className="h-4 rounded-[3px]"
-                              title={
-                                lang === "en"
-                                  ? `${c.name} ${h}:00 — ${v}h streamed`
-                                  : `${c.name} ${h}時台: 配信${v}h`
-                              }
-                              style={{
-                                background:
-                                  v === 0
-                                    ? "#f1f5f9"
-                                    : `rgba(${pfRgb(c.platform)},${0.15 + (v / c.max) * 0.85})`,
-                              }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                      {/* 曜日別の配信量（濃いほどその曜日に配信が多い） */}
-                      <div className="ml-2 flex w-[84px] shrink-0 border-l border-slate-100 pl-1.5">
-                        {DOW_ORDER.map((dw) => {
-                          const v = c.dows[dw];
-                          return (
-                            <div key={dw} className="flex-1 px-[1px]">
-                              <div
-                                className="h-4 rounded-[3px]"
-                                title={
-                                  lang === "en"
-                                    ? `${c.name} ${DOW_LABEL.en[dw]} — ${v}h streamed`
-                                    : `${c.name} ${DOW_LABEL.ja[dw]}曜: 配信${v}h`
-                                }
-                                style={{
-                                  background:
-                                    v === 0
-                                      ? "#f1f5f9"
-                                      : `rgba(${pfRgb(c.platform)},${0.15 + (v / c.dowMax) * 0.85})`,
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div
-                        className="w-16 shrink-0 pl-1.5 text-right text-[10px] tabular-nums text-slate-400"
-                        title={t("an.chMapBestTitle")}
-                      >
-                        {lang === "en" ? `${c.bestStart}–${c.endLabel}` : `${c.bestStart}〜${c.endLabel}時`}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="mt-2 flex items-center justify-end gap-3 text-[10px] text-slate-400">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-youtube" /> YouTube
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-twitch" /> Twitch
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <div className="mt-6 grid gap-6 sm:grid-cols-2">
+          {/* 上段：配信者ランキング／よく見られている配信者ページ（スマホでは1列に積む） */}
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 sm:grid-rows-[auto_1fr] sm:gap-y-0">
             {/* 配信者ランキング（盛り上がり順＝延べ視聴時間） */}
-            <section>
-              <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.leaderboard")}</h2>
-              <p className="mb-2 text-[11px] text-slate-400">{t("an.leaderboardDesc")}</p>
+            <section className={COL_ALIGN}>
+              <div>
+                <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.leaderboard")}</h2>
+                <p className="mb-2 text-[11px] text-slate-400">
+                  {t("an.leaderboardDesc")}
+                  {lbDelta ? ` ${t("an.rankDeltaNote")}` : ""}
+                </p>
+              </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 {(d?.leaderboard ?? []).length === 0 ? (
                   <p className="text-xs text-slate-400">{t("an.noDataYet")}</p>
@@ -857,7 +697,12 @@ export default function AnalyticsPage() {
                     <ol className="space-y-2.5">
                       {(d?.leaderboard ?? []).slice(0, lbOpen ? undefined : COLLAPSED).map((c, i) => (
                         <li key={i} className="flex items-center gap-2 text-sm">
-                          <span className="w-5 shrink-0 text-right text-xs font-bold text-slate-400">{i + 1}</span>
+                          <span className="w-6 shrink-0 text-center">
+                            <span className="block text-xs font-bold leading-tight text-slate-400">
+                              {c.rank ?? i + 1}
+                            </span>
+                            {lbDelta && <RankDelta rank={c.rank ?? i + 1} prevRank={c.prev_rank} />}
+                          </span>
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${pfDot(c.platform)}`} />
                           <div className="min-w-0 flex-1">
                             <Link
@@ -897,15 +742,158 @@ export default function AnalyticsPage() {
               </div>
             </section>
 
+            {/* よく見られている配信者ページ（サイト内の閲覧ランキング） */}
+            <section className={COL_ALIGN}>
+              <div>
+                <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.pageRank")}</h2>
+                <p className="mb-2 text-[11px] text-slate-400">
+                  {t("an.pageRankDesc")}
+                  {prDelta ? ` ${t("an.rankDeltaNote")}` : ""}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                {(d?.page_ranking ?? []).length === 0 ? (
+                  <p className="text-xs text-slate-400">{t("an.pageRankEmpty")}</p>
+                ) : (
+                  <>
+                    <ol className="space-y-2.5">
+                      {(d?.page_ranking ?? [])
+                        .slice(0, prOpen ? undefined : COLLAPSED)
+                        .map((c, i) => (
+                          <li
+                            key={`${c.platform}-${c.channel_id}`}
+                            className="flex items-center gap-2 text-sm"
+                          >
+                            <span className="w-6 shrink-0 text-center">
+                              <span className="block text-xs font-bold leading-tight text-slate-400">
+                                {c.rank ?? i + 1}
+                              </span>
+                              {prDelta && <RankDelta rank={c.rank ?? i + 1} prevRank={c.prev_rank} />}
+                            </span>
+                            <ChannelIcon
+                              src={c.thumbnail_url}
+                              name={c.channel_name}
+                              platform={c.platform}
+                              size={28}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <Link
+                                href={streamerPath(c.platform, c.channel_id)}
+                                className="block truncate text-slate-700 hover:text-brand hover:underline"
+                              >
+                                {c.channel_name}
+                              </Link>
+                              <div
+                                className="mt-0.5 h-1 rounded-full bg-brand"
+                                style={{ width: `${Math.round((c.uniques / maxPageUniq) * 100)}%` }}
+                              />
+                            </div>
+                            <span className="shrink-0 text-right font-bold tabular-nums text-slate-900">
+                              {fmt(c.uniques)}
+                              <span className="ml-0.5 text-[10px] font-normal text-slate-400">
+                                {t("an.pageRankUnit")}
+                              </span>
+                            </span>
+                          </li>
+                        ))}
+                    </ol>
+                    <ShowMore
+                      open={prOpen}
+                      hidden={Math.max(0, (d?.page_ranking ?? []).length - COLLAPSED)}
+                      onToggle={() => setPrOpen((v) => !v)}
+                      labelAll={t("an.showAll")}
+                      labelLess={t("an.showLess")}
+                    />
+                  </>
+                )}
+              </div>
+            </section>
+
+          </div>
+
+          {/* 下段：登録者の伸び／新規参入ch（説明文の行数差はsubgridで吸収して表の位置を揃える） */}
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 sm:grid-rows-[auto_1fr] sm:gap-y-0">
+            {/* 登録者の伸び（エンリッチ有効時のみ） */}
+            {hasGrowth && (
+            <section className={COL_ALIGN}>
+              <div>
+                <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.growth")}</h2>
+                <p className="mb-2 text-[11px] text-slate-400">
+                  {t("an.growthDesc")}
+                  {grDelta ? ` ${t("an.rankDeltaNote")}` : ""}
+                </p>
+              </div>
+              <div>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                      <th className="px-3 py-2 font-medium">{t("an.thChannel")}</th>
+                      <th className="px-3 py-2 font-medium tabular-nums">{t("an.thSubs")}</th>
+                      <th className="px-3 py-2 font-medium tabular-nums">{t("an.thDelta")}</th>
+                      <th className="px-3 py-2 font-medium tabular-nums">{t("an.thGrowth")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(d?.growth ?? [])
+                      .filter((g) => g.delta != null)
+                      .slice(0, grOpen ? undefined : COLLAPSED)
+                      .map((g) => (
+                        <tr key={g.channel_id} className="border-b border-slate-50 last:border-0">
+                          <td className="px-3 py-2 text-slate-700">
+                            <span className="flex items-center gap-1.5">
+                              {grDelta && (
+                                <span className="w-6 shrink-0 text-center">
+                                  <RankDelta rank={g.rank} prevRank={g.prev_rank} />
+                                </span>
+                              )}
+                              <Link
+                                href={streamerPath("youtube", g.channel_id)}
+                                className="min-w-0 hover:text-brand hover:underline"
+                              >
+                                {g.channel_name}
+                              </Link>
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-slate-700">{fmt(g.latest_subs)}</td>
+                          <td className={`px-3 py-2 font-bold tabular-nums ${(g.delta ?? 0) > 0 ? "text-brand" : "text-slate-400"}`}>
+                            {(g.delta ?? 0) > 0 ? "+" : ""}
+                            {fmt(g.delta)}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-slate-500">
+                            {g.growth_pct != null ? `${g.growth_pct > 0 ? "+" : ""}${g.growth_pct}%` : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              <ShowMore
+                open={grOpen}
+                hidden={Math.max(
+                  0,
+                  (d?.growth ?? []).filter((g) => g.delta != null).length - COLLAPSED,
+                )}
+                onToggle={() => setGrOpen((v) => !v)}
+                labelAll={t("an.showAll")}
+                labelLess={t("an.showLess")}
+              />
+              </div>
+            </section>
+            )}
+
             {/* 新規参入 */}
-            <section>
-              <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.newcomers")}</h2>
+            <section className={COL_ALIGN}>
+              <div>
+                <h2 className="mb-2 text-sm font-black text-slate-700">{t("an.newcomers")}</h2>
+              </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 {(d?.new_channels ?? []).length === 0 ? (
                   <p className="text-xs text-slate-400">{t("an.newcomersEmpty")}</p>
                 ) : (
                   <>
-                    <ul className="grid grid-cols-1 gap-x-3 gap-y-2 min-[420px]:grid-cols-2">
+                    {/* スマホ（フル幅）では2列・sm以上は半分の幅に収まるので1列に戻す */}
+                    <ul className="grid grid-cols-1 gap-x-3 gap-y-2 min-[420px]:grid-cols-2 sm:grid-cols-1">
                       {(d?.new_channels ?? []).slice(0, ncOpen ? undefined : COLLAPSED).map((c) => (
                         <li key={c.channel_id} className="flex items-center gap-2 text-sm">
                           <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${pfDot(c.platform)}`}>
@@ -937,61 +925,6 @@ export default function AnalyticsPage() {
               </div>
             </section>
           </div>
-
-          {/* 登録者の伸び（エンリッチ有効時のみ） */}
-          {hasGrowth && (
-            <section className="mt-6">
-              <h2 className="mb-1 text-sm font-black text-slate-700">{t("an.growth")}</h2>
-              <p className="mb-2 text-[11px] text-slate-400">{t("an.growthDesc")}</p>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                      <th className="px-4 py-2 font-medium">{t("an.thChannel")}</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">{t("an.thSubs")}</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">{t("an.thDelta")}</th>
-                      <th className="px-4 py-2 font-medium tabular-nums">{t("an.thGrowth")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(d?.growth ?? [])
-                      .filter((g) => g.delta != null)
-                      .slice(0, grOpen ? undefined : COLLAPSED)
-                      .map((g) => (
-                        <tr key={g.channel_id} className="border-b border-slate-50 last:border-0">
-                          <td className="px-4 py-2 text-slate-700">
-                            <Link
-                              href={streamerPath("youtube", g.channel_id)}
-                              className="hover:text-brand hover:underline"
-                            >
-                              {g.channel_name}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-2 tabular-nums text-slate-700">{fmt(g.latest_subs)}</td>
-                          <td className={`px-4 py-2 font-bold tabular-nums ${(g.delta ?? 0) > 0 ? "text-brand" : "text-slate-400"}`}>
-                            {(g.delta ?? 0) > 0 ? "+" : ""}
-                            {fmt(g.delta)}
-                          </td>
-                          <td className="px-4 py-2 tabular-nums text-slate-500">
-                            {g.growth_pct != null ? `${g.growth_pct > 0 ? "+" : ""}${g.growth_pct}%` : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-              <ShowMore
-                open={grOpen}
-                hidden={Math.max(
-                  0,
-                  (d?.growth ?? []).filter((g) => g.delta != null).length - COLLAPSED,
-                )}
-                onToggle={() => setGrOpen((v) => !v)}
-                labelAll={t("an.showAll")}
-                labelLess={t("an.showLess")}
-              />
-            </section>
-          )}
 
           <p className="mt-8 border-t border-slate-200 pt-4 text-xs leading-relaxed text-slate-400">
             {t("common.disclaimerShort")}

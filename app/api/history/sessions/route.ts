@@ -18,7 +18,9 @@ export async function GET(request: Request) {
   const sessions = (
     (data ?? []) as {
       platform: "youtube" | "twitch";
+      channel_id: string;
       channel_name: string;
+      game: string | null;
       session_start: string;
       session_end: string;
       peak: number;
@@ -26,7 +28,10 @@ export async function GET(request: Request) {
     }[]
   ).map((r) => ({
     platform: r.platform,
+    channel_id: r.channel_id,
     channel_name: r.channel_name,
+    // タイムラインの帯をタイトル別に色分けするため（判別前の古い行は null）
+    game: isGameId(r.game) ? r.game : null,
     start: new Date(r.session_start).getTime(),
     end: new Date(r.session_end).getTime(),
     peak: r.peak,

@@ -96,6 +96,8 @@ html, body {
 .dark .text-twitch { color: #a970ff; }
 
 /* ---- 枠線 ---- */
+/* カード面と同色。アイコン右下のPFバッジの縁取りに使う */
+.dark .border-white { border-color: #17231b; }
 .dark .border-slate-50 { border-color: #1a2a20; }
 .dark .border-slate-100 { border-color: #1e2f24; }
 .dark .border-slate-200 { border-color: #27392d; }

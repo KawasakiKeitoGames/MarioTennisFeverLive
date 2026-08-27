@@ -131,7 +131,6 @@ const DICT = {
   "hist.game": { ja: "タイトル", en: "Game" },
   "hist.platform": { ja: "対象", en: "Platform" },
   "hist.range": { ja: "期間", en: "Range" },
-  "hist.combined": { ja: "合算", en: "All" },
   "hist.total": { ja: "総同時視聴者数", en: "Total concurrent viewers" },
   "hist.peak": { ja: "ピーク", en: "Peak" },
   "hist.noData": {
@@ -140,11 +139,12 @@ const DICT = {
   },
   "hist.timeline": { ja: "配信タイムライン", en: "Stream timeline" },
   "hist.note": {
-    ja: "総同時視聴者数は各時点の YouTube＋Twitch の同時視聴合算です（配信のない時間帯は0）。タイムラインの帯は配信していた時間、濃さはピーク視聴者数を表します。",
-    en: "Total concurrent viewers = YouTube + Twitch combined at each point (0 when nothing is live). Timeline bars show when each channel was live; darker bars mean higher peak viewers.",
+    ja: "総同時視聴者数は各時点の YouTube＋Twitch の同時視聴合算です（配信のない時間帯は0）。タイムラインの帯は配信していた時間、色はゲームタイトル、濃さはピーク視聴者数を表します。行頭のドットは YouTube / Twitch の別です。",
+    en: "Total concurrent viewers = YouTube + Twitch combined at each point (0 when nothing is live). Timeline bars show when each channel was live; the color is the game, and darker bars mean higher peak viewers. The dot before each name shows YouTube / Twitch.",
   },
   "hist.tipViewers": { ja: "同時視聴", en: "Viewers" },
   "tl.empty": { ja: "この期間に配信はありません。", en: "No streams in this period." },
+  "tl.legend": { ja: "帯の色＝タイトル", en: "Bar color = game" },
 
   // ランキング・記録
   "an.subtitle": {
@@ -189,20 +189,6 @@ const DICT = {
   },
   "an.less": { ja: "少", en: "Less" },
   "an.more": { ja: "多", en: "More" },
-  "an.primeSub": {
-    ja: "いちばん配信が重なりやすい時間帯です（日本時間）。",
-    en: "The hours when the most streams overlap (Japan time).",
-  },
-  "an.chMap": { ja: "配信者の時間帯マップ", en: "Streamer schedule map" },
-  "an.chMapDesc": {
-    ja: "よく配信している上位chが、どの時間帯（日本時間）に配信していることが多いか。濃いほどその時間の配信時間が長め。右は曜日ごとの配信量と、特に多い連続3時間帯。",
-    en: "When the most active channels usually stream (JST). Darker = more hours streamed in that slot. Right: hours by day of week, and their busiest 3-hour window.",
-  },
-  "an.dowHeader": { ja: "曜日", en: "Day" },
-  "an.chMapBestTitle": {
-    ja: "期間内でもっとも配信が多い連続3時間帯",
-    en: "Busiest consecutive 3-hour window in the period",
-  },
   "an.leaderboard": { ja: "配信者ランキング（盛り上がり順）", en: "Streamer leaderboard (by watch time)" },
   "an.leaderboardDesc": {
     ja: "延べ視聴時間（同時視聴×時間の合計）で順位付け。YouTube / Twitch の収集頻度差はならして公平に比較しています。",
@@ -210,6 +196,20 @@ const DICT = {
   },
   "an.viewerHours": { ja: "視聴h", en: "viewer-h" },
   "an.noDataYet": { ja: "まだデータがありません。", en: "No data yet." },
+  "an.pageRank": { ja: "よく見られている配信者ページ", en: "Most-viewed streamer pages" },
+  "an.pageRankDesc": {
+    ja: "このサイト内の配信者ページが期間中に何人に見られたか。同じ人が何度見ても1人と数えます（全タイトル合算）。",
+    en: "How many people opened each streamer's page on this site during the period. Repeat visits from the same person count once (all games combined).",
+  },
+  "an.pageRankUnit": { ja: "人", en: "people" },
+  "an.rankDeltaNote": {
+    ja: "▲▼は直前の同じ長さの期間と比べた順位の変動（NEW＝前の期間はランク外）。",
+    en: "▲▼ = change in rank vs the preceding period of the same length (NEW = not ranked then).",
+  },
+  "an.pageRankEmpty": {
+    ja: "この期間に見られた配信者ページはまだありません。",
+    en: "No streamer pages were viewed in this period yet.",
+  },
   "an.newcomers": { ja: "新規参入ch（初観測が最近）", en: "New channels (first seen recently)" },
   "an.newcomersEmpty": { ja: "直近の新規参入はありません。", en: "No new channels recently." },
   "an.firstSeen": { ja: "初観測", en: "First seen" },

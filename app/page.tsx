@@ -154,6 +154,27 @@ export default function Home() {
             <ThemeToggle />
           </div>
         </div>
+        {/* 他ページへの導線。他ページと同じく上部に置いて目立たせる */}
+        <nav className="mb-3 flex flex-wrap items-center gap-2">
+          <Link
+            href="/analytics"
+            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+          >
+            {t("nav.analytics")}
+          </Link>
+          <Link
+            href="/history"
+            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+          >
+            {t("nav.history")}
+          </Link>
+          <Link
+            href="/streamers"
+            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
+          >
+            {t("nav.streamers")}
+          </Link>
+        </nav>
         <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
           {t("home.title")}
         </h1>
@@ -300,7 +321,7 @@ export default function Home() {
       </div>
 
       {/* コントロール */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-y-2 px-1">
+      <div className="mb-4 flex flex-wrap items-center gap-y-2 px-1">
         <div className="flex flex-wrap items-center gap-1">
           <span className="mr-1 text-xs text-slate-400">{t("home.sort")}</span>
           {(["viewers", "name", "elapsed"] as const).map((k) => (
@@ -316,26 +337,6 @@ export default function Home() {
               {t(SORT_KEYS[k])}
             </button>
           ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/analytics"
-            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
-          >
-            {t("nav.analytics")}
-          </Link>
-          <Link
-            href="/history"
-            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
-          >
-            {t("nav.history")}
-          </Link>
-          <Link
-            href="/streamers"
-            className="inline-flex items-center gap-1 rounded-full border border-brand/30 bg-brand/5 px-3 py-1.5 text-xs font-bold text-brand shadow-sm transition-colors hover:bg-brand/10"
-          >
-            {t("nav.streamers")}
-          </Link>
         </div>
       </div>
 
