@@ -261,6 +261,7 @@ export async function fetchTwitchLive(
         user_name?: string;
         user_login?: string;
         game_id?: string;
+        game_name?: string;
         title?: string;
         viewer_count?: number;
         language?: string;
@@ -269,7 +270,9 @@ export async function fetchTwitchLive(
     };
     for (const s of data.data ?? []) {
       const login = s.user_login ?? "";
-      const game = gameByTwitchId.get(s.game_id ?? "");
+      // カテゴリ名で判定し、取れないときだけ game_id の対応表で補う。
+      // 保存済みの game_id が古い・誤っていても、別タイトルを取り込まない。
+      const game = matchGame(s.game_name) ?? gameByTwitchId.get(s.game_id ?? "");
       if (!game) continue; // 想定外のカテゴリ（通常は起きない）
       out.push({
         platform: "twitch",
