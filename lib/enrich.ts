@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase";
+import { helixGet } from "@/lib/twitch";
 
 // =====================================================================
 // チャンネルのエンリッチ（1日1回）
@@ -130,20 +131,6 @@ async function enrichYouTube(
   return { count, units };
 }
 
-async function twitchToken(clientId: string, secret: string): Promise<string> {
-  const res = await fetch("https://id.twitch.tv/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: secret,
-      grant_type: "client_credentials",
-    }),
-  });
-  if (!res.ok) throw new Error(`Twitch token: ${res.status}`);
-  return ((await res.json()) as { access_token: string }).access_token;
-}
-
 async function enrichTwitch(
   ids: ActiveChannel[],
   clientId: string,
@@ -151,8 +138,6 @@ async function enrichTwitch(
 ): Promise<{ count: number }> {
   const supabase = createServiceClient();
   const firstSeenMap = new Map(ids.map((c) => [c.channel_id, c.first_seen]));
-  const token = await twitchToken(clientId, secret);
-  const headers = { "Client-ID": clientId, Authorization: `Bearer ${token}` };
   const now = new Date().toISOString();
   let count = 0;
 
@@ -160,10 +145,7 @@ async function enrichTwitch(
   // 開設日・broadcaster_type などの静的属性のみを channels に保存する。
   for (const group of chunk(ids.map((c) => c.channel_id), 100)) {
     const qs = group.map((l) => `login=${encodeURIComponent(l)}`).join("&");
-    const res = await fetch(`https://api.twitch.tv/helix/users?${qs}`, {
-      headers,
-      cache: "no-store",
-    });
+    const res = await helixGet(`https://api.twitch.tv/helix/users?${qs}`, clientId, secret);
     if (!res.ok) {
       console.error(`[enrich TW] ${res.status} ${await res.text()}`);
       continue;
@@ -287,15 +269,13 @@ async function enrichTwitchVods(
   secret: string,
 ): Promise<{ count: number }> {
   const supabase = createServiceClient();
-  const token = await twitchToken(clientId, secret);
-  const headers = { "Client-ID": clientId, Authorization: `Bearer ${token}` };
   const now = new Date().toISOString();
 
   // login → user_id（Get Videos は user_id 指定のため）
   const idByLogin = new Map<string, string>();
   for (const group of chunk(logins, 100)) {
     const qs = group.map((l) => `login=${encodeURIComponent(l)}`).join("&");
-    const res = await fetch(`https://api.twitch.tv/helix/users?${qs}`, { headers, cache: "no-store" });
+    const res = await helixGet(`https://api.twitch.tv/helix/users?${qs}`, clientId, secret);
     if (!res.ok) {
       console.error(`[enrich TW vods] users ${res.status} ${await res.text()}`);
       continue;
@@ -308,9 +288,10 @@ async function enrichTwitchVods(
 
   let count = 0;
   for (const [login, userId] of idByLogin) {
-    const res = await fetch(
+    const res = await helixGet(
       `https://api.twitch.tv/helix/videos?user_id=${userId}&type=archive&first=10`,
-      { headers, cache: "no-store" },
+      clientId,
+      secret,
     );
     if (!res.ok) {
       console.error(`[enrich TW vods] videos(${login}) ${res.status} ${await res.text()}`);
