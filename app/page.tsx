@@ -65,7 +65,9 @@ export default function Home() {
   const load = useCallback(async () => {
     try {
       const gq = game === "all" ? "" : `?game=${game}`;
-      const res = await fetch(`/api/streams${gq}`, { cache: "no-store" });
+      // no-store だとブラウザがCDNのキャッシュを迂回しかねないので既定のまま投げる。
+      // 応答が max-age=0 なので、ブラウザは毎回CDNに問い合わせる（古い内容は掴まない）。
+      const res = await fetch(`/api/streams${gq}`);
       if (!res.ok) throw new Error(`fetch failed (${res.status})`);
       const data = await res.json();
       setYoutube(data.youtube ?? []);
@@ -84,11 +86,34 @@ export default function Home() {
     }
   }, [game]);
 
+  // 自動更新は「タブが見えているあいだだけ」。
+  // 以前は表示状態に関係なく回していたため、開きっぱなしのタブが誰も見ていない時間帯も
+  // 1分ごとに叩き続け、Vercelの Active CPU の最大の消費源になっていた。
+  // 裏に回ったら止め、戻ってきたら即座に1回読み直してから再開する。
   useEffect(() => {
+    const stop = () => {
+      if (!timer.current) return;
+      clearInterval(timer.current);
+      timer.current = null;
+    };
+    const start = () => {
+      if (timer.current) return;
+      timer.current = setInterval(load, REFRESH_MS);
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else {
+        load();
+        start();
+      }
+    };
+
     load();
-    timer.current = setInterval(load, REFRESH_MS);
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      if (timer.current) clearInterval(timer.current);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [load]);
 

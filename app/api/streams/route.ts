@@ -4,6 +4,14 @@ import { isGameId } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
 
+// CDN（Vercel Edge）に持たせるキャッシュ。
+//   max-age=0                 … ブラウザには持たせない（毎回CDNに聞きに行く）
+//   s-maxage=60               … CDNは60秒そのまま返す＝この間は関数が動かない
+//   stale-while-revalidate    … 期限切れ後も古い内容を即返し、裏で1回だけ取り直す
+// 収集自体が Twitch 2分・YouTube 5〜60分間隔なので、60秒足しても体感の鮮度は変わらない。
+// 誰でも同じ内容を返す公開APIなので、利用者ごとに出し分ける心配はない。
+const CACHE_CONTROL = "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
+
 // 現在配信中の一覧を返す（current_streams ビューから）。
 // ?game=fever|aces|mt64 でタイトル絞り込み（未指定=全タイトル）。
 // ユーザーのアクセスでは外部APIを一切叩かず、Supabaseのキャッシュ済みデータのみ返す。
@@ -64,14 +72,17 @@ export async function GET(request: Request) {
   const youtube = withBadges((data ?? []).filter((r) => r.platform === "youtube"));
   const twitch = withBadges((data ?? []).filter((r) => r.platform === "twitch"));
 
-  return NextResponse.json({
-    captured_at: capturedAt,
-    captured_at_youtube: capByPf.get("youtube") ?? null,
-    captured_at_twitch: capByPf.get("twitch") ?? null,
-    previous_total: st?.previous_total ?? null,
-    peak_viewers: st?.peak ?? null,
-    peak_at: st?.peak_at ?? null,
-    youtube,
-    twitch,
-  });
+  return NextResponse.json(
+    {
+      captured_at: capturedAt,
+      captured_at_youtube: capByPf.get("youtube") ?? null,
+      captured_at_twitch: capByPf.get("twitch") ?? null,
+      previous_total: st?.previous_total ?? null,
+      peak_viewers: st?.peak ?? null,
+      peak_at: st?.peak_at ?? null,
+      youtube,
+      twitch,
+    },
+    { headers: { "Cache-Control": CACHE_CONTROL } },
+  );
 }
