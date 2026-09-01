@@ -12,6 +12,7 @@ import {
 } from "@/lib/schedule";
 import { Toolbar, DeleteSnapshotButton } from "./Actions";
 import AnalyticsChart, { type DailyRow } from "./AnalyticsChart";
+import FlIcon from "../components/FlIcon";
 
 export const dynamic = "force-dynamic";
 
@@ -53,12 +54,6 @@ function dt(iso: string | null): string {
 function dayMd(ymd: string): string {
   const [, m, d] = ymd.split("-");
   return `${Number(m)}/${Number(d)}`;
-}
-
-// 国コード(ISO 3166-1 alpha-2)→国旗絵文字。不明('??'等)は🌐。
-function flagEmoji(cc: string): string {
-  if (!/^[A-Z]{2}$/.test(cc)) return "🌐";
-  return String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
 }
 
 // countries jsonb（国コード→クリック数）を多い順の配列に。'??'（記録前・不明）は末尾。
@@ -385,8 +380,11 @@ export default async function AdminPage({
                 <Stat label="直近の間隔" value={st.intervalMin != null ? `${st.intervalMin}分` : "—"} />
               </div>
               {st.stale && (
-                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-                  ⚠️ 最終収集から{st.sinceLastMin}分経過（想定間隔{st.expected}分）。ジョブ停止の可能性があります。
+                <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                  <FlIcon name="warn" size={14} className="mt-px" />
+                  <span>
+                    最終収集から{st.sinceLastMin}分経過（想定間隔{st.expected}分）。ジョブ停止の可能性があります。
+                  </span>
                 </div>
               )}
             </div>
@@ -443,7 +441,6 @@ export default async function AdminPage({
                     </td>
                     <td className={`px-4 py-2 text-xs ${stale ? "font-bold text-amber-600" : "text-slate-600"}`}>
                       {relative(j.last_success)}
-                      {stale && " ⚠️"}
                     </td>
                     <td className={`px-4 py-2 text-xs ${failed ? "font-bold text-red-600" : "text-slate-500"}`}>
                       {j.last_status === "succeeded" ? "成功" : (j.last_status ?? "—")}
@@ -524,7 +521,7 @@ export default async function AdminPage({
                           <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400">
                             {cc.slice(0, 5).map(([code, n]) => (
                               <span key={code}>
-                                {flagEmoji(code)} {code === "??" ? "不明" : code}
+                                {code === "??" ? "不明" : code}
                                 <span className="ml-0.5 tabular-nums">{n}</span>
                               </span>
                             ))}
@@ -586,7 +583,7 @@ export default async function AdminPage({
                   {clickCountries.map((r) => (
                     <li key={r.country} className="flex items-center justify-between text-sm">
                       <span className="min-w-0 flex-1 truncate text-slate-600">
-                        {flagEmoji(r.country)} {r.country === "??" ? "不明（記録開始前など）" : r.country}
+                        {r.country === "??" ? "不明（記録開始前など）" : r.country}
                       </span>
                       <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(r.clicks)}</span>
                     </li>

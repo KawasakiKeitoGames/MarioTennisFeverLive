@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import LangToggle from "../../../components/LangToggle";
 import { useLang } from "../../../components/LocaleProvider";
+import FlIcon from "../../../components/FlIcon";
 import { GAME_BY_ID, gameLabel, type GameId, isGameId } from "@/lib/games";
 import { intlLocale, type Lang } from "@/lib/i18n";
 import { trackOutbound } from "@/lib/track";
@@ -331,7 +332,7 @@ export default function StreamerDetailPage() {
                 title={t("st.rankTitle")}
                 className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-brand/15 bg-brand/5 px-3 py-2 text-xs"
               >
-                <span aria-hidden>🏆</span>
+                <FlIcon name="trophy" size={14} className="text-brand" />
                 {lang === "en" ? (
                   <span className="text-slate-600">
                     Rank{" "}

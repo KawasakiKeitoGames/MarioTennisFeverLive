@@ -71,8 +71,8 @@ function elapsedMs(s: StreamSnapshot, nowIso: string | null): number {
 
 // 視聴者数トレンドの見た目（横ばいは表示しない＝上昇/下降のときだけバッジを出す）
 const TREND: Record<string, { icon: string; labelKey: "list.trendUp" | "list.trendDown"; cls: string }> = {
-  up: { icon: "📈", labelKey: "list.trendUp", cls: "border-emerald-200 bg-emerald-50 text-emerald-600" },
-  down: { icon: "📉", labelKey: "list.trendDown", cls: "border-amber-200 bg-amber-50 text-amber-600" },
+  up: { icon: "▲", labelKey: "list.trendUp", cls: "border-emerald-200 bg-emerald-50 text-emerald-600" },
+  down: { icon: "▼", labelKey: "list.trendDown", cls: "border-amber-200 bg-amber-50 text-amber-600" },
 };
 
 function Badges({ s, capturedAt }: { s: StreamSnapshot; capturedAt: string | null }) {
@@ -86,12 +86,12 @@ function Badges({ s, capturedAt }: { s: StreamSnapshot; capturedAt: string | nul
     <div className="mt-1 flex flex-wrap items-center gap-1">
       {streak >= 2 && (
         <span className="inline-flex items-center gap-0.5 rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-600">
-          🔥 {lang === "en" ? `${streak}-day streak` : `${streak}日連続`}
+          {lang === "en" ? `${streak}-day streak` : `${streak}日連続`}
         </span>
       )}
       {elapsed && (
         <span className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-          ⏱ {elapsed}
+          {elapsed}
         </span>
       )}
       {trend && (

@@ -472,14 +472,14 @@ export default function AnalyticsPage() {
         <div className="mt-3 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
           {lang === "en" ? (
             <>
-              📈 Day <span className="font-bold text-brand">{span}</span> of data collection —{" "}
+              Day <span className="font-bold text-brand">{span}</span> of data collection —{" "}
               <span className="font-bold text-brand">{Math.max(1, 30 - span)}</span> more{" "}
               {Math.max(1, 30 - span) === 1 ? "day" : "days"} until the 30-day view. Showing the last{" "}
               {days} days for now (trends stabilize as data accumulates).
             </>
           ) : (
             <>
-              📈 データ蓄積 <span className="font-bold text-brand">{span}日目</span>。30日ビューまであと{" "}
+              データ蓄積 <span className="font-bold text-brand">{span}日目</span>。30日ビューまであと{" "}
               <span className="font-bold text-brand">{Math.max(1, 30 - span)}日</span>
               。いまは直近{days}日ぶんで集計しています（日々たまるほど傾向が安定します）。
             </>

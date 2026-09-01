@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLang } from "./LocaleProvider";
+import FlIcon from "./FlIcon";
 
 // ダークテーマ切り替え（SENSEKI FEVER と同じ案A グリーンティント配色）。
 // 端末ごとの好みで localStorage に保存（既定はライト）。
@@ -38,9 +39,9 @@ export default function ThemeToggle() {
       onClick={toggle}
       aria-label={dark ? t("theme.toLight") : t("theme.toDark")}
       title={dark ? t("theme.toLight") : t("theme.toDark")}
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-sm shadow-sm transition-colors hover:bg-slate-50"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
     >
-      {dark ? "☀️" : "🌙"}
+      <FlIcon name={dark ? "sun" : "moon"} size={16} />
     </button>
   );
 }

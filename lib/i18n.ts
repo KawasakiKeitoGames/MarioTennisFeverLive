@@ -19,11 +19,11 @@ const DICT = {
     en: "This is an unofficial fan-made site, not affiliated with Nintendo Co., Ltd. or any rights holders.",
   },
   "common.all": { ja: "すべて", en: "All" },
-  "nav.home": { ja: "🏠 ライブボードに戻る", en: "🏠 Back to Live Board" },
-  "nav.analytics": { ja: "📊 ランキング・記録 →", en: "📊 Rankings & Records →" },
-  "nav.history": { ja: "📈 推移 →", en: "📈 Trends →" },
-  "nav.streamers": { ja: "🔍 配信者検索 →", en: "🔍 Find streamers →" },
-  "nav.about": { ja: "ℹ️ このアプリについて", en: "ℹ️ About this app" },
+  "nav.home": { ja: "ライブボードに戻る", en: "Back to Live Board" },
+  "nav.analytics": { ja: "ランキング・記録 →", en: "Rankings & Records →" },
+  "nav.history": { ja: "推移 →", en: "Trends →" },
+  "nav.streamers": { ja: "配信者検索 →", en: "Find streamers →" },
+  "nav.about": { ja: "このアプリについて", en: "About this app" },
 
   // 配信者検索・詳細
   "st.title": { ja: "配信者検索", en: "Streamer Search" },
@@ -71,7 +71,7 @@ const DICT = {
   // トップ（ライブボード）
   "home.title": { ja: "マリオテニス配信中ボード", en: "Mario Tennis Live Board" },
   "home.updated": { ja: "更新", en: "Updated" },
-  "home.admin": { ja: "⚙️ 管理ページ", en: "⚙️ Admin" },
+  "home.admin": { ja: "管理ページ", en: "Admin" },
   "home.liveNow": { ja: "いま配信中", en: "Live now" },
   "home.vsLast": { ja: "前回比", en: "vs last" },
   "home.vsLastTitle": {
@@ -275,8 +275,8 @@ const DICT = {
     en: "For feedback, requests, or bug reports, feel free to reach out via DM to Games on X (formerly Twitter). You can open the X account from the links page below.",
   },
   "about.links": {
-    ja: "🔗 ガメスのリンクまとめ（X・配信など）",
-    en: "🔗 Games — links (X, streams, and more)",
+    ja: "ガメスのリンクまとめ（X・配信など）",
+    en: "Games — links (X, streams, and more)",
   },
   "about.updated": { ja: "最終更新日：2026年8月", en: "Last updated: August 2026" },
 

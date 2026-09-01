@@ -1,5 +1,5 @@
 // YouTube収集の時間帯別スケジュール（JST）。アプリ内の唯一の定義。
-// ⚠️ Supabase pg_cron の6ジョブ（mtf-collect-golden/evening/prime/noon/daytime/latenight）と一致必須。
+// 注意: Supabase pg_cron の6ジョブ（mtf-collect-golden/evening/prime/noon/daytime/latenight）と一致必須。
 // 時間帯を変更するときは cron.schedule 側も同時に更新すること。
 // 2026-08-19 直近3週間の実測（時間帯別の平均配信数）に基づき再配分:
 //   ピークは21〜23時(3.7〜4.5配信)・深夜1〜4時(0.7〜1.6)は18〜19時(0.4〜0.6)より多い・
