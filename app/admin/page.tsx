@@ -11,7 +11,8 @@ import {
   jstTodayStartUtc,
 } from "@/lib/schedule";
 import { Toolbar, DeleteSnapshotButton } from "./Actions";
-import AnalyticsChart, { type DailyRow } from "./AnalyticsChart";
+import AnalyticsChart, { type PointRow } from "./AnalyticsChart";
+import { countryJa } from "@/lib/countries";
 import FlIcon from "../components/FlIcon";
 
 export const dynamic = "force-dynamic";
@@ -160,7 +161,9 @@ export default async function AdminPage({
   searchParams: Promise<{ days?: string }>;
 }) {
   const sp = await searchParams;
-  const days = [1, 7, 30].includes(Number(sp.days)) ? Number(sp.days) : 7;
+  // 既定は「今日」(JST 0:00〜)。推移グラフは今日だけ時間別、7/30日間は日別。
+  const days = [1, 7, 30].includes(Number(sp.days)) ? Number(sp.days) : 1;
+  const hourly = days === 1;
 
   const supabase = createServiceClient();
 
@@ -172,8 +175,8 @@ export default async function AdminPage({
     enrichDaysRes,
     snapCountRes,
     summaryRes,
-    viewDailyRes,
-    clickDailyRes,
+    viewSeriesRes,
+    clickSeriesRes,
     topClickedRes,
     streamerViewsRes,
     clickCountriesRes,
@@ -208,8 +211,12 @@ export default async function AdminPage({
       .limit(300),
     supabase.from("stream_snapshots").select("*", { count: "exact", head: true }),
     supabase.rpc("analytics_summary", { p_days: days }),
-    supabase.rpc("events_daily", { p_days: days, p_type: "view" }),
-    supabase.rpc("events_daily", { p_days: days, p_type: "click" }),
+    hourly
+      ? supabase.rpc("events_hourly", { p_days: days, p_type: "view" })
+      : supabase.rpc("events_daily", { p_days: days, p_type: "view" }),
+    hourly
+      ? supabase.rpc("events_hourly", { p_days: days, p_type: "click" })
+      : supabase.rpc("events_daily", { p_days: days, p_type: "click" }),
     supabase.rpc("top_clicked", { p_days: days, p_limit: 20 }),
     supabase.rpc("streamer_page_views", { p_days: days, p_limit: 15 }),
     supabase.rpc("click_countries", { p_days: days }),
@@ -259,23 +266,38 @@ export default async function AdminPage({
   const ctr = summary.views > 0 ? (summary.clicks / summary.views) * 100 : 0;
 
   // 日別 view/click をマージしてグラフ用に整形
-  const viewDaily = (viewDailyRes.data ?? []) as { day: string; count: number }[];
-  const clickDaily = (clickDailyRes.data ?? []) as { day: string; count: number }[];
-  // events_daily は既にJST日付("YYYY-MM-DD")を返すので、時刻変換せず文字列を整形する。
-  const dayLabel = (ymd: string) => {
-    const [, m, d] = ymd.split("-");
-    return `${Number(m)}/${Number(d)}`;
-  };
-  const dailyMap = new Map<string, DailyRow>();
-  for (const r of viewDaily) {
-    dailyMap.set(r.day, { day: dayLabel(r.day), PV: r.count, クリック: 0 });
+  // 推移グラフ用。今日=時間別(events_hourly)、7/30日間=日別(events_daily)。
+  let series: PointRow[];
+  if (hourly) {
+    const viewHourly = (viewSeriesRes.data ?? []) as { hour: number; count: number }[];
+    const clickHourly = (clickSeriesRes.data ?? []) as { hour: number; count: number }[];
+    const viewMap = new Map(viewHourly.map((r) => [r.hour, r.count]));
+    const clickMap = new Map(clickHourly.map((r) => [r.hour, r.count]));
+    // 0時から現在時刻(JST)まで。アクセスの無い時間も0で埋めて線を途切れさせない。
+    series = Array.from({ length: currentJstHour() + 1 }, (_, h) => ({
+      label: `${h}時`,
+      PV: viewMap.get(h) ?? 0,
+      クリック: clickMap.get(h) ?? 0,
+    }));
+  } else {
+    const viewDaily = (viewSeriesRes.data ?? []) as { day: string; count: number }[];
+    const clickDaily = (clickSeriesRes.data ?? []) as { day: string; count: number }[];
+    // events_daily は既にJST日付("YYYY-MM-DD")を返すので、時刻変換せず文字列を整形する。
+    const dayLabel = (ymd: string) => {
+      const [, m, d] = ymd.split("-");
+      return `${Number(m)}/${Number(d)}`;
+    };
+    const dailyMap = new Map<string, PointRow>();
+    for (const r of viewDaily) {
+      dailyMap.set(r.day, { label: dayLabel(r.day), PV: r.count, クリック: 0 });
+    }
+    for (const r of clickDaily) {
+      const existing = dailyMap.get(r.day);
+      if (existing) existing.クリック = r.count;
+      else dailyMap.set(r.day, { label: dayLabel(r.day), PV: 0, クリック: r.count });
+    }
+    series = [...dailyMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
   }
-  for (const r of clickDaily) {
-    const existing = dailyMap.get(r.day);
-    if (existing) existing.クリック = r.count;
-    else dailyMap.set(r.day, { day: dayLabel(r.day), PV: 0, クリック: r.count });
-  }
-  const daily = [...dailyMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
 
   const topClicked = (topClickedRes.data ?? []) as {
     channel_name: string;
@@ -492,8 +514,10 @@ export default async function AdminPage({
         </div>
 
         <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-          <div className="mb-1 px-1 text-xs font-bold text-slate-500">日別の推移</div>
-          <AnalyticsChart data={daily} />
+          <div className="mb-1 px-1 text-xs font-bold text-slate-500">
+            {hourly ? "時間別の推移（今日・JST）" : "日別の推移"}
+          </div>
+          <AnalyticsChart data={series} />
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -521,7 +545,7 @@ export default async function AdminPage({
                           <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400">
                             {cc.slice(0, 5).map(([code, n]) => (
                               <span key={code}>
-                                {code === "??" ? "不明" : code}
+                                {countryJa(code)}
                                 <span className="ml-0.5 tabular-nums">{n}</span>
                               </span>
                             ))}
@@ -583,7 +607,14 @@ export default async function AdminPage({
                   {clickCountries.map((r) => (
                     <li key={r.country} className="flex items-center justify-between text-sm">
                       <span className="min-w-0 flex-1 truncate text-slate-600">
-                        {r.country === "??" ? "不明（記録開始前など）" : r.country}
+                        {r.country === "??" ? (
+                          "不明（記録開始前など）"
+                        ) : (
+                          <>
+                            {countryJa(r.country)}
+                            <span className="ml-1 text-[10px] text-slate-400">{r.country}</span>
+                          </>
+                        )}
                       </span>
                       <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt(r.clicks)}</span>
                     </li>
